@@ -42,7 +42,7 @@ class ContextView(SimStatePlugin):
         return "\x1b[4m" + text + "\x1b[0m"
 
     def grey(self, text):
-        return "\x1b[40;90;1m" + text + "\x1b[0m"
+        return "\x1b[40;90;32m" + text + "\x1b[0m"
 
     def BVtoREG(self, bv):
         if type(bv) == str:

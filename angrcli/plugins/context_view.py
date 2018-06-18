@@ -138,7 +138,8 @@ class ContextView(SimStatePlugin):
         except:
             pass
         code = self.state.project.factory.block(ip).capstone.__str__()
-        print highlight(code, NasmLexer(), TerminalFormatter())
+        highlighed_code = highlight(code, NasmLexer(), TerminalFormatter())
+        print "\n".join(highlighed_code.split('\n')[:20]) #HACK: limit printed lines to 20
 
     def fds(self):
         if ["", "", ""] == [self.state.posix.dumps(x) for x in self.state.posix.fd]:

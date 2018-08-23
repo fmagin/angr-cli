@@ -118,7 +118,7 @@ class ContextView(SimStatePlugin):
         print(self.blue("[-------------------------------------code-------------------------------------]"))
         try:
             self.__pprint_codeblock(self.__get_prev_block())
-            print("\t|\t" + self.cc(self.state.history.jump_guard) + "\n\tv")
+            print("\t|\t" + self.cc(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
         except:
             pass
         self.__pprint_codeblock(self.state.solver.eval(self.state.regs.ip))
@@ -227,6 +227,7 @@ class ContextView(SimStatePlugin):
             'X86': ['eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp', 'esp', 'eip'],
             'AMD64': ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'rbp', 'rsp', 'rip', 'r8', 'r9', 'r10', 'r11', 'r12',
                       'r13', 'r14', 'r15']
+
         }
         if self.state.arch.name in custom:
             return custom[self.state.arch.name]
@@ -239,13 +240,13 @@ class ContextView(SimStatePlugin):
 
     def pstr_branch_info(self, idx=None):
         """Return the information about the state concerning the last branch as a pretty string"""
-        str_rip = self.pstr_ast(self.state.regs.rip)
-        int_rip = self.state.solver.eval(self.state.regs.rip)
-        jump_guard = self.pstr_ast(self.state.history.jump_guard)
+        str_ip = self.pstr_ast(self.state.regs.ip)
+        simplified_jump_guard = self.state.solver.simplify(self.state.history.jump_guard)
+        str_jump_guard = self.pstr_ast(simplified_jump_guard)
         vars = self.state.history.jump_guard.variables
 
         return "%sIP: %s\tCond: %s\n\tVars: %s\n" % \
-               (str(idx) + ":\t" if type(idx) is int else "", str_rip, jump_guard, vars)
+               (str(idx) + ":\t" if type(idx) is int else "", str_ip, str_jump_guard, vars)
 
 
 class Stack():
@@ -259,3 +260,6 @@ class Stack():
             raise IndexError
         return addr, self.state.memory.load(addr, size=self.state.arch.bytes, endness=self.state.arch.memory_endness)
 
+
+
+ContextView.register_default("context_view")

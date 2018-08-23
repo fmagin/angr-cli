@@ -1,7 +1,18 @@
 
 from cmd import Cmd
 
-import os
+
+class GUICallbackBaseClass():
+    def update_ip(self, ip):
+        pass
+
+
+class BinjaCallback(GUICallbackBaseClass):
+    def __init__(self, bv):
+        self.bv = bv
+
+    def update_ip(self, ip):
+        self.bv.file.navigate(self.bv.file.view, ip)
 
 
 class ExploreInteractive(Cmd, object):
@@ -9,18 +20,11 @@ class ExploreInteractive(Cmd, object):
     intro = "Dropping into angr shell"
     prompt = "explore>"
 
-    def __init__(self, proj, state):
+    def __init__(self, proj, state, gui_callback_object=None):
         super(ExploreInteractive, self).__init__()
         self.proj = proj
         self.simgr = proj.factory.simulation_manager(state)
-
-    def do_hello(self, args):
-        """Says hello. If you provide a name, it will greet you with it."""
-        if len(args) == 0:
-            name = 'stranger'
-        else:
-            name = args
-        print "Hello, %s" % name
+        self.gui_cb = gui_callback_object
 
     def do_quit(self, args):
         """Quits the program."""
@@ -28,15 +32,20 @@ class ExploreInteractive(Cmd, object):
         raise SystemExit
 
     def do_print(self, arg):
+        if not arg:
+            arg = "0"
+
         pick = int(arg)
         self.simgr.active[pick].context_view.pprint()
-
+        self.gui_cb.update_ip(self.simgr.active[pick].addr)
 
     def do_stepi(self, args):
         if len(self.simgr.active) == 1:
             self.simgr.step(num_inst=1)
             print("\033[H\033[J")
             self.simgr.one_active.context_view.pprint()
+            self.gui_cb.update_ip(self.simgr.one_active.addr)
+
         elif len(self.simgr.active) > 1:
             idx = 0
             for state in self.simgr.active:
@@ -48,6 +57,7 @@ class ExploreInteractive(Cmd, object):
             self.simgr.step()
             print("\033[H\033[J")
             self.simgr.one_active.context_view.pprint()
+            self.gui_cb.update_ip(self.simgr.one_active.addr)
         elif len(self.simgr.active) > 1:
             idx = 0
             for state in self.simgr.active:
@@ -59,6 +69,7 @@ class ExploreInteractive(Cmd, object):
 
     def do_run(self, args):
         self.simgr.run(until=lambda s: len(s.active) != 1)
+        self.gui_cb.update_ip(self.simgr.one_active.addr)
         idx = 0
         for state in self.simgr.active:
             print state.context_view.pstr_branch_info(idx)

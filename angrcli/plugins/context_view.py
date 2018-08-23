@@ -111,7 +111,6 @@ class ContextView(SimStatePlugin):
                 if self.state.project.loader.find_object_containing(addr) != self.state.project.loader.extern_object:
                     return addr
             except IndexError:
-                l.warn("No state in the recent history was not a simproc, no idea how this can happen")
                 break
 
     def code(self):

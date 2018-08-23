@@ -20,7 +20,7 @@ class ExploreInteractive(Cmd, object):
     intro = "Dropping into angr shell"
     prompt = "explore>"
 
-    def __init__(self, proj, state, gui_callback_object=None):
+    def __init__(self, proj, state, gui_callback_object=GUICallbackBaseClass()):
         super(ExploreInteractive, self).__init__()
         self.proj = proj
         self.simgr = proj.factory.simulation_manager(state)

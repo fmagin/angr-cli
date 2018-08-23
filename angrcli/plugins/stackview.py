@@ -31,3 +31,6 @@ class Stack(SimStatePlugin):
         if self.state.solver.eval(addr >= self.state.arch.initial_sp):
             raise IndexError("Stack only has %d elements" % self.element_count())
         return addr, self.state.memory.load(addr, size=self.state.arch.bytes, endness=self.state.arch.memory_endness)
+
+
+Stack.register_default('stack')

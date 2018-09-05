@@ -73,8 +73,9 @@ class ExploreInteractive(Cmd, object):
         self.do_step(args)
 
     def do_run(self, args):
-        self.simgr.run(until=lambda s: len(s.active) != 1)
-        self.gui_cb.update_ip(self.simgr.one_active.addr)
+        if len(self.simgr.active) == 1:
+            self.simgr.run(until=lambda s: len(s.active) != 1)
+            self.gui_cb.update_ip(self.simgr.one_active.addr)
         for i, state in enumerate(self.simgr.active):
             print state.context_view.pstr_branch_info(i)
 

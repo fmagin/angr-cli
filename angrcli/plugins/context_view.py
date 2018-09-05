@@ -136,9 +136,12 @@ class ContextView(SimStatePlugin):
             print(f.name + "+" + hex(ip - f.addr))
         except:
             pass
-        code = self.state.project.factory.block(ip).capstone.__str__()
-        highlighed_code = highlight(code, NasmLexer(), TerminalFormatter())
-        print "\n".join(highlighed_code.split('\n')[:20]) #HACK: limit printed lines to 20
+        try:
+            code = self.state.project.factory.block(ip).capstone.__str__()
+            highlighed_code = highlight(code, NasmLexer(), TerminalFormatter())
+            print "\n".join(highlighed_code.split('\n')[:20]) #HACK: limit printed lines to 20
+        except:
+            self.red("No code at current ip. Please specify self_modifying code ")
 
     def fds(self):
         if ["", "", ""] == [self.state.posix.dumps(x) for x in self.state.posix.fd]:

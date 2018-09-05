@@ -214,7 +214,7 @@ class ContextView(SimStatePlugin):
         the ast is concrete and the derefed value is not uninitialized"""
         if ast.concrete:
             value = self.state.solver.eval(ast)
-            if self.__deref_addr(value):
+            if ast.op =='BVV' and self.__deref_addr(value):
                 return self.cc(ast) + self.__deref_addr(value)
             else:
                 return self.cc(ast)

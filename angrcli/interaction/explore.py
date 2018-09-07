@@ -34,7 +34,7 @@ class ExploreInteractive(Cmd, object):
 
     def do_quit(self, args):
         """Quits the program."""
-        red("Quitting.")
+        print red("Quitting.")
         raise SystemExit
 
     def do_print(self, arg):
@@ -73,11 +73,18 @@ class ExploreInteractive(Cmd, object):
         self.do_step(args)
 
     def do_run(self, args):
+        if len(self.simgr.active) > 1 and args:
+            self.do_pick(args)
         if len(self.simgr.active) == 1:
             self.simgr.run(until=lambda s: len(s.active) != 1)
-            self.gui_cb.update_ip(self.simgr.one_active.addr)
-        for i, state in enumerate(self.simgr.active):
-            print state.context_view.pstr_branch_info(i)
+            if self.simgr.active:
+                self.gui_cb.update_ip(self.simgr.one_active.addr)
+
+        if len(self.simgr.active) > 0:
+            for i, state in enumerate(self.simgr.active):
+                print state.context_view.pstr_branch_info(i)
+        else:
+            print red("No active states left")
 
 
     def do_pick(self, arg):

@@ -20,7 +20,8 @@ def red(text):
 
 class ExploreInteractive(Cmd, object):
 
-    intro = red("[!] Dropping into angr shell ")
+    intro = red("[!] Dropping into angr shell\n") 
+    intro += red("Available Commands: print, (p)ick, (r)un, (s)tep, stepi, (q)uit")
     prompt = red(">>> ")
 
     def __init__(self, proj, state, gui_callback_object=GUICallbackBaseClass()):
@@ -33,9 +34,13 @@ class ExploreInteractive(Cmd, object):
         print("\033[H\033[J")
 
     def do_quit(self, args):
-        """Quits the program."""
-        print(red("Quitting."))
-        raise SystemExit
+        """Quits the cli."""
+        print(red("Exiting cmd-loop"))
+        return True
+    
+    def do_q(self, args):
+        self.do_quit(args)
+        return True
 
     def do_print(self, arg):
         if not arg:
@@ -68,6 +73,9 @@ class ExploreInteractive(Cmd, object):
             for state in self.simgr.active:
                 print(state.context_view.pstr_branch_info(idx))
                 idx += 1
+    
+    def do_s(self, args):
+        self.do_step(args)
 
     def do_s(self, args):
         self.do_step(args)
@@ -86,10 +94,17 @@ class ExploreInteractive(Cmd, object):
         else:
             print(red("No active states left"))
 
+    def do_r(self, args):
+        self.do_run(args)
+
 
     def do_pick(self, arg):
-        pick = int(arg)
-        ip = self.simgr.active[pick].regs.ip
+        try:
+            pick = int(arg)
+            ip = self.simgr.active[pick].regs.ip
+        except:
+            print("Invalid Choice: "+red("{}".format(arg))+", for {}".format(self.simgr))
+            return False
         print(red("Picking state with ip: " + (str(ip))))
         self.simgr.move(from_stash='active',
                    to_stash="stashed",
@@ -97,3 +112,6 @@ class ExploreInteractive(Cmd, object):
         self.simgr.step()
         self._clearScreen()
         self.simgr.one_active.context_view.pprint()
+    
+    def do_p(self, args):
+        self.do_pick(args)

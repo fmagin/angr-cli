@@ -34,7 +34,7 @@ class ExploreInteractive(Cmd, object):
 
     def do_quit(self, args):
         """Quits the program."""
-        print red("Quitting.")
+        print(red("Quitting."))
         raise SystemExit
 
     def do_print(self, arg):
@@ -54,7 +54,7 @@ class ExploreInteractive(Cmd, object):
         elif len(self.simgr.active) > 1:
             idx = 0
             for state in self.simgr.active:
-                print state.context_view.pstr_branch_info(idx)
+                print(state.context_view.pstr_branch_info(idx))
                 idx += 1
 
     def do_step(self, args):
@@ -66,7 +66,7 @@ class ExploreInteractive(Cmd, object):
         elif len(self.simgr.active) > 1:
             idx = 0
             for state in self.simgr.active:
-                print state.context_view.pstr_branch_info(idx)
+                print(state.context_view.pstr_branch_info(idx))
                 idx += 1
 
     def do_s(self, args):
@@ -82,15 +82,15 @@ class ExploreInteractive(Cmd, object):
 
         if len(self.simgr.active) > 0:
             for i, state in enumerate(self.simgr.active):
-                print state.context_view.pstr_branch_info(i)
+                print(state.context_view.pstr_branch_info(i))
         else:
-            print red("No active states left")
+            print(red("No active states left"))
 
 
     def do_pick(self, arg):
         pick = int(arg)
         ip = self.simgr.active[pick].regs.ip
-        red("Picking state with ip: " + (str(ip)))
+        print(red("Picking state with ip: " + (str(ip))))
         self.simgr.move(from_stash='active',
                    to_stash="stashed",
                    filter_func=lambda x: x.solver.eval(ip != x.regs.ip))

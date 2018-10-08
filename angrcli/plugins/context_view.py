@@ -129,7 +129,7 @@ class ContextView(SimStatePlugin):
         # Check if we are currently in the extern object in which case printing disassembly is pointless
         o = self.state.project.loader.find_object_containing(ip)
         if o == self.state.project.loader.extern_object:
-            print self.state.project._sim_procedures[ip]
+            print(self.state.project._sim_procedures[ip])
             return
         try:
             f = self.state.project.kb.functions.floor_func(ip)
@@ -139,7 +139,7 @@ class ContextView(SimStatePlugin):
         try:
             code = self.state.project.factory.block(ip).capstone.__str__()
             highlighed_code = highlight(code, NasmLexer(), TerminalFormatter())
-            print "\n".join(highlighed_code.split('\n')[:20]) #HACK: limit printed lines to 20
+            print("\n".join(highlighed_code.split('\n')[:20])) #HACK: limit printed lines to 20
         except:
             self.red("No code at current ip. Please specify self_modifying code ")
 
@@ -148,20 +148,20 @@ class ContextView(SimStatePlugin):
             return
         print(self.blue("[-------------------------------filedescriptors--------------------------------]"))
         for fd in self.state.posix.fd:
-            print "fd " + str(fd), ":", repr(self.state.posix.dumps(fd))
+            print("fd " + str(fd), ":", repr(self.state.posix.dumps(fd)))
 
     def print_stack(self):
         stackdepth = 8
         print(self.blue("[------------------------------------stack-------------------------------------]"))
         # Not sure if that can happen, but if it does things will break
         if not self.state.regs.sp.concrete:
-            print "STACK POINTER IS SYMBOLIC: " + str(self.state.regs.sp)
+            print("STACK POINTER IS SYMBOLIC: " + str(self.state.regs.sp))
             return
         for o in range(stackdepth):
             self.__pprint_stack_element(o)
 
     def __pprint_stack_element(self, offset):
-        """Print stack element in the form IDX:OFFSET|      ADDRESS --> CONTENT"""
+        """print(stack element in the form IDX:OFFSET|      ADDRESS --> CONTENT"""
         l = "%s:" % ("{0:#02d}".format(offset))
         l += "%s| " % ("{0:#04x}".format(offset * self.state.arch.bytes))
         try:
@@ -179,7 +179,7 @@ class ContextView(SimStatePlugin):
 
         l += "%s " % self.cc(stackaddr)
         l += " --> %s" % self.pstr_ast(stackval)
-        print l
+        print(l)
 
     def registers(self):
         """

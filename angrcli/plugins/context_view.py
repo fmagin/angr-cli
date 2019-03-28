@@ -92,6 +92,8 @@ class ContextView(SimStatePlugin):
         self.state.context_view.fds()
         self.state.context_view.print_stack()
         self.state.context_view.backtrace()
+        self.state.context_view.print_watches()
+        return ""
 
     def backtrace(self):
         print(self.blue("[-------------------------------------backtrace--------------------------------]"))
@@ -250,6 +252,14 @@ class ContextView(SimStatePlugin):
         return "%sIP: %s\tCond: %s\n\tVars: %s\n" % \
                (str(idx) + ":\t" if type(idx) is int else "", str_ip, str_jump_guard, vars)
 
+    def print_watches(self):
+        if not self.state.watches:
+            return
+        print(self.blue("[----------------------------------watches-------------------------------------]"))
+
+        for name, w in self.state.watches.eval:
+                print("%s:\t%s" % (name, w))
+        return None
 
 class Stack():
     def __init__(self, state):

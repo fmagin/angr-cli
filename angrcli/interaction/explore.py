@@ -115,3 +115,7 @@ class ExploreInteractive(Cmd, object):
     
     def do_p(self, args):
         self.do_pick(args)
+
+    def do_EOF(self, args):
+        self.do_quit(args)
+        return True

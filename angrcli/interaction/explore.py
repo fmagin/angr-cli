@@ -30,6 +30,14 @@ class ExploreInteractive(Cmd, object):
         self.simgr = proj.factory.simulation_manager(state)
         self.gui_cb = gui_callback_object
 
+    @property
+    def state(self):
+        """
+        Alias to `self.simgr.one_active`
+        :return:
+        """
+        return self.simgr.one_active
+
     def _clearScreen(self):
         print("\033[H\033[J")
 

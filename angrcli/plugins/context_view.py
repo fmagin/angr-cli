@@ -49,7 +49,7 @@ class ContextView(SimStatePlugin):
             return bv
         if "reg" in str(bv):
             args = list()
-            for v in self.state.se.describe_variables(bv):
+            for v in self.state.solver.describe_variables(bv):
                 if "reg" in v:
                     ridx = v[1]
                     regname = self.state.arch.register_names[ridx]
@@ -76,11 +76,11 @@ class ContextView(SimStatePlugin):
                 return self.grey(self.BVtoREG(bv))
             return self.green(self.BVtoREG(bv))
         # its concrete
-        value = self.state.se.eval(bv)
+        value = self.state.solver.eval(bv)
         if self.state.project.loader.find_object_containing(value):
             descr = " <%s>" % self.state.project.loader.describe_addr(value)
             return self.red(hex(value) + descr)
-        if value >= self.state.se.eval(self.state.regs.sp) and value < self.state.arch.initial_sp:
+        if value >= self.state.solver.eval(self.state.regs.sp) and value < self.state.arch.initial_sp:
             return self.yellow(hex(value))
         return hex(value)
 
@@ -157,9 +157,9 @@ class ContextView(SimStatePlugin):
         except IndexError:
             return
 
-        if self.state.se.eval(stackaddr) == self.state.se.eval(self.state.regs.sp, cast_to=int):
+        if self.state.solver.eval(stackaddr) == self.state.solver.eval(self.state.regs.sp, cast_to=int):
             l += "sp"
-        elif self.state.se.eval(stackaddr) == self.state.se.eval(self.state.regs.bp, cast_to=int):
+        elif self.state.solver.eval(stackaddr) == self.state.solver.eval(self.state.regs.bp, cast_to=int):
             l += "bp"
         else:
             l += "  "

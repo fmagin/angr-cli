@@ -101,24 +101,10 @@ class ContextView(SimStatePlugin):
             "Frame %d: %#x => %#x, sp = %#x" % (i, f.call_site_addr, f.func_addr, f.stack_ptr) for i, f in
             enumerate(self.state.callstack)))
 
-    def __get_prev_block(self):
-        """Find the previously block in terms of what a human would expect (e.g. if the last state was a SimProc
-        I don't know a better way to do this...
-        Iterates over the last executed basic blocks and tries to find the first one
-        that isn't in the extern_object and is thus not a SimProc
-        """
-        for idx in range(-1, -20, -1):
-            try:
-                addr = self.state.history.bbl_addrs[idx]
-                if self.state.project.loader.find_object_containing(addr) != self.state.project.loader.extern_object:
-                    return addr
-            except IndexError:
-                break
-
     def code(self):
         print(self.blue("[-------------------------------------code-------------------------------------]"))
         try:
-            self.__pprint_codeblock(self.__get_prev_block())
+            self.__pprint_codeblock(self.state.history.bbl_addrs[-1])
             print("\t|\t" + self.cc(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
         except:
             pass

@@ -42,4 +42,5 @@ s.context_view.pprint()
 e = ExploreInteractive(p, s)
 e.cmdloop()
 
+print("Done!")
 

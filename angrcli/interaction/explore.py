@@ -28,6 +28,8 @@ class ExploreInteractive(Cmd, object):
         super(ExploreInteractive, self).__init__()
         self.proj = proj
         self.simgr = proj.factory.simulation_manager(state)
+        if "deferred" not in self.simgr.stashes:
+            self.simgr.stashes["deferred"] = []
         self.gui_cb = gui_callback_object
 
     @property
@@ -55,8 +57,12 @@ class ExploreInteractive(Cmd, object):
             arg = "0"
 
         pick = int(arg)
-        self.simgr.active[pick].context_view.pprint()
-        self.gui_cb.update_ip(self.simgr.active[pick].addr)
+        active = len(self.simgr.active)
+        if pick >= active:
+            print(red("Only {} active state(s), indexed from 0".format(active)))
+        else:
+            self.simgr.active[pick].context_view.pprint()
+            self.gui_cb.update_ip(self.simgr.active[pick].addr)
 
     def do_stepi(self, args):
         if len(self.simgr.active) == 1:
@@ -65,10 +71,8 @@ class ExploreInteractive(Cmd, object):
             self.simgr.one_active.context_view.pprint()
             self.gui_cb.update_ip(self.simgr.one_active.addr)
         elif len(self.simgr.active) > 1:
-            idx = 0
-            for state in self.simgr.active:
+            for idx, state in enumerate(self.simgr.active):
                 print(state.context_view.pstr_branch_info(idx))
-                idx += 1
 
     def do_step(self, args):
         if len(self.simgr.active) == 1:
@@ -77,10 +81,8 @@ class ExploreInteractive(Cmd, object):
             self.simgr.one_active.context_view.pprint()
             self.gui_cb.update_ip(self.simgr.one_active.addr)
         elif len(self.simgr.active) > 1:
-            idx = 0
-            for state in self.simgr.active:
+            for idx, state in enumerate(self.simgr.active):
                 print(state.context_view.pstr_branch_info(idx))
-                idx += 1
     
     def do_s(self, args):
         self.do_step(args)
@@ -100,7 +102,10 @@ class ExploreInteractive(Cmd, object):
             for i, state in enumerate(self.simgr.active):
                 print(state.context_view.pstr_branch_info(i))
         else:
-            print(red("No active states left"))
+            if len(self.simgr.stashes["deferred"]) == 0:
+                print(red("No active states left"))
+            else: # DFS-style like 
+                self.simgr.stashes["active"].append(self.simgr.stashes["deferred"].pop())
 
     def do_r(self, args):
         self.do_run(args)
@@ -115,7 +120,7 @@ class ExploreInteractive(Cmd, object):
             return False
         print(red("Picking state with ip: " + (str(ip))))
         self.simgr.move(from_stash='active',
-                   to_stash="stashed",
+                   to_stash="deferred",
                    filter_func=lambda x: x.solver.eval(ip != x.regs.ip))
         self.simgr.step()
         self._clearScreen()
@@ -127,3 +132,4 @@ class ExploreInteractive(Cmd, object):
     def do_EOF(self, args):
         self.do_quit(args)
         return True
+

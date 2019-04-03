@@ -10,7 +10,12 @@ from pygments.formatters import TerminalFormatter
 
 MAX_AST_DEPTH = 5
 
-
+headerWatch     = "[ ──────────────────────────────────────────────────────────────────── Watches ── ]"
+headerBacktrace = "[ ────────────────────────────────────────────────────────────────── BackTrace ── ]"
+headerCode      = "[ ─────────────────────────────────────────────────────────────────────── Code ── ]"
+headerFDs       = "[ ──────────────────────────────────────────────────────────── FileDescriptors ── ]"
+headerStack     = "[ ────────────────────────────────────────────────────────────────────── Stack ── ]"
+headerRegs      = "[ ────────────────────────────────────────────────────────────────── Registers ── ]"
 class ContextView(SimStatePlugin):
     def __init__(self):
         super(ContextView, self).__init__()
@@ -96,13 +101,13 @@ class ContextView(SimStatePlugin):
         return ""
 
     def backtrace(self):
-        print(self.blue("[──────────────────────────────────── backtrace ────────────────────────────────]"))
+        print(self.blue(headerBacktrace))
         print("Backtrace:\n%s" % "\n".join(
             "Frame %d: %#x => %#x, sp = %#x" % (i, f.call_site_addr, f.func_addr, f.stack_ptr) for i, f in
             enumerate(self.state.callstack)))
 
     def code(self):
-        print(self.blue("[────────────────────────────────────── code ────────────────────────────────────]"))
+        print(self.blue(headerCode))
         try:
             self.__pprint_codeblock(self.state.history.bbl_addrs[-1])
             print("\t|\t" + self.cc(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
@@ -134,13 +139,13 @@ class ContextView(SimStatePlugin):
     def fds(self):
         if ["", "", ""] == [self.state.posix.dumps(x) for x in self.state.posix.fd]:
             return
-        print(self.blue("[────────────────────────────── filedescriptors ───────────────────────────────]"))
+        print(self.blue(headerFDs))
         for fd in self.state.posix.fd:
             print("fd " + str(fd), ":", repr(self.state.posix.dumps(fd)))
 
     def print_stack(self):
         stackdepth = 8
-        print(self.blue("[──────────────────────────────────── stack ────────────────────────────────────]"))
+        print(self.blue(headerStack))
         # Not sure if that can happen, but if it does things will break
         if not self.state.regs.sp.concrete:
             print("STACK POINTER IS SYMBOLIC: " + str(self.state.regs.sp))
@@ -173,7 +178,7 @@ class ContextView(SimStatePlugin):
         """
         Visualise the register state
         """
-        print(self.blue("[────────────────────────────────── registers ──────────────────────────────────]"))
+        print(self.blue(headerRegs))
         for reg in self.default_registers():
             register_number = self.state.arch.registers[reg][0]
             self.__pprint_register(reg, self.state.registers.load(register_number))
@@ -241,7 +246,7 @@ class ContextView(SimStatePlugin):
     def print_watches(self):
         if not self.state.watches:
             return
-        print(self.blue("[────────────────────────────────── watches ────────────────────────────────────]"))
+        print(self.blue(headerWatch))
 
         for name, w in self.state.watches.eval:
                 print("%s:\t%s" % (name, w))

@@ -102,9 +102,11 @@ class ExploreInteractive(Cmd, object):
             for i, state in enumerate(self.simgr.active):
                 print(state.context_view.pstr_branch_info(i))
         else:
+            print(red("STATE FINISHED EXECUTION"))
             if len(self.simgr.stashes["deferred"]) == 0:
-                print(red("No active states left"))
+                print(red("No states left to explore"))
             else: # DFS-style like 
+                print(red("Other side of last branch has been added to {}".format(self.simgr)))
                 self.simgr.stashes["active"].append(self.simgr.stashes["deferred"].pop())
 
     def do_r(self, args):

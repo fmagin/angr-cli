@@ -96,13 +96,13 @@ class ContextView(SimStatePlugin):
         return ""
 
     def backtrace(self):
-        print(self.blue("[-------------------------------------backtrace--------------------------------]"))
+        print(self.blue("[──────────────────────────────────── backtrace ────────────────────────────────]"))
         print("Backtrace:\n%s" % "\n".join(
             "Frame %d: %#x => %#x, sp = %#x" % (i, f.call_site_addr, f.func_addr, f.stack_ptr) for i, f in
             enumerate(self.state.callstack)))
 
     def code(self):
-        print(self.blue("[-------------------------------------code-------------------------------------]"))
+        print(self.blue("[────────────────────────────────────── code ────────────────────────────────────]"))
         try:
             self.__pprint_codeblock(self.state.history.bbl_addrs[-1])
             print("\t|\t" + self.cc(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
@@ -134,13 +134,13 @@ class ContextView(SimStatePlugin):
     def fds(self):
         if ["", "", ""] == [self.state.posix.dumps(x) for x in self.state.posix.fd]:
             return
-        print(self.blue("[-------------------------------filedescriptors--------------------------------]"))
+        print(self.blue("[────────────────────────────── filedescriptors ───────────────────────────────]"))
         for fd in self.state.posix.fd:
             print("fd " + str(fd), ":", repr(self.state.posix.dumps(fd)))
 
     def print_stack(self):
         stackdepth = 8
-        print(self.blue("[------------------------------------stack-------------------------------------]"))
+        print(self.blue("[──────────────────────────────────── stack ────────────────────────────────────]"))
         # Not sure if that can happen, but if it does things will break
         if not self.state.regs.sp.concrete:
             print("STACK POINTER IS SYMBOLIC: " + str(self.state.regs.sp))
@@ -149,7 +149,7 @@ class ContextView(SimStatePlugin):
             self.__pprint_stack_element(o)
 
     def __pprint_stack_element(self, offset):
-        """print(stack element in the form IDX:OFFSET|      ADDRESS --> CONTENT"""
+        """print(stack element in the form IDX:OFFSET|      ADDRESS ──> CONTENT"""
         l = "%s:" % ("{0:#02d}".format(offset))
         l += "%s| " % ("{0:#04x}".format(offset * self.state.arch.bytes))
         try:
@@ -166,14 +166,14 @@ class ContextView(SimStatePlugin):
         l += " "
 
         l += "%s " % self.cc(stackaddr)
-        l += " --> %s" % self.pstr_ast(stackval)
+        l += " ──> %s" % self.pstr_ast(stackval)
         print(l)
 
     def registers(self):
         """
         Visualise the register state
         """
-        print(self.blue("[----------------------------------registers-----------------------------------]"))
+        print(self.blue("[────────────────────────────────── registers ──────────────────────────────────]"))
         for reg in self.default_registers():
             register_number = self.state.arch.registers[reg][0]
             self.__pprint_register(reg, self.state.registers.load(register_number))
@@ -195,7 +195,7 @@ class ContextView(SimStatePlugin):
             if deref.concrete or not deref.uninitialized:
                 value = self.state.solver.eval(deref)
                 if not value == addr:
-                    return " --> %s" % self.pstr_ast(deref)
+                    return " ──> %s" % self.pstr_ast(deref)
 
     def pstr_ast(self, ast):
         """Return a pretty string for an AST including a description of the derefed value if it makes sense (i.e. if
@@ -241,7 +241,7 @@ class ContextView(SimStatePlugin):
     def print_watches(self):
         if not self.state.watches:
             return
-        print(self.blue("[----------------------------------watches-------------------------------------]"))
+        print(self.blue("[────────────────────────────────── watches ────────────────────────────────────]"))
 
         for name, w in self.state.watches.eval:
                 print("%s:\t%s" % (name, w))

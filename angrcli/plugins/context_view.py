@@ -137,7 +137,7 @@ class ContextView(SimStatePlugin):
             self.red("No code at current ip. Please specify self_modifying code ")
 
     def fds(self):
-        if ["", "", ""] == [self.state.posix.dumps(x) for x in self.state.posix.fd]:
+        if [b"", b"", b""] == [self.state.posix.dumps(x) for x in self.state.posix.fd]:
             return
         print(self.blue(headerFDs))
         for fd in self.state.posix.fd:

@@ -1,4 +1,5 @@
 import logging
+from angr.calling_conventions import SimFunctionArgument
 
 from angr.state_plugins import SimStatePlugin
 
@@ -9,6 +10,7 @@ from pygments.lexers import NasmLexer
 from pygments.formatters import TerminalFormatter
 
 MAX_AST_DEPTH = 5
+MAX_DISASS_LENGHT = 30
 
 headerWatch     = "[ ──────────────────────────────────────────────────────────────────── Watches ── ]"
 headerBacktrace = "[ ────────────────────────────────────────────────────────────────── BackTrace ── ]"
@@ -109,32 +111,76 @@ class ContextView(SimStatePlugin):
     def code(self):
         print(self.blue(headerCode))
         try:
-            self.__pprint_codeblock(self.state.history.bbl_addrs[-1])
+            self.__print_previous_codeblock()
             print("\t|\t" + self.cc(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
         except:
             pass
-        self.__pprint_codeblock(self.state.solver.eval(self.state.regs.ip))
+        self.__print_current_codeblock()
 
-    def print_codeblock(self, ip):
-        self.__pprint_codeblock(ip)
+    def __print_previous_codeblock(self):
+        prev_ip = self.state.history.bbl_addrs[-1]
 
-    def __pprint_codeblock(self, ip):
-        # Check if we are currently in the extern object in which case printing disassembly is pointless
-        o = self.state.project.loader.find_object_containing(ip)
-        if o == self.state.project.loader.extern_object:
-            print(self.state.project._sim_procedures[ip])
+
+        print(self.state.project.loader.describe_addr(prev_ip))
+
+
+
+        if not self.state.project.is_hooked(prev_ip):
+            code = self.__pstr_codeblock(prev_ip).split("\n")
+            # if it is longer than MAX_DISASS_LENGTH, only print the first lines
+            if len(code) >= MAX_DISASS_LENGHT:
+                print("TRUNCATED BASIC BLOCK")
+                print("\n".join(code[-MAX_DISASS_LENGHT:]))
+            else:
+                print("\n".join(code))
             return
+        else:
+            hook = self.state.project.hooked_by(prev_ip)
+            print(hook)
+
+
+
+    def __print_current_codeblock(self):
+        current_ip = self.state.solver.eval(self.state.regs.ip)
+
+        # Check if we are at the start of a known function to maybe pretty print the arguments
         try:
-            f = self.state.project.kb.functions.floor_func(ip)
-            print(f.name + "+" + hex(ip - f.addr))
-        except:
+            function = self.state.project.kb.functions[current_ip]
+        except KeyError:
             pass
+        else:
+            #TODO: Implement Call pretty printing here
+            pass
+
+        # Print the location (like main+0x10) if possible
+        print(self.state.project.loader.describe_addr(current_ip))
+
+        # Get the current code block about to be executed as pretty disassembly
+
+        if not self.state.project.is_hooked(current_ip):
+            code = self.__pstr_codeblock(current_ip).split("\n")
+            # if it is longer than MAX_DISASS_LENGTH, only print the first lines
+            if len(code) >= MAX_DISASS_LENGHT:
+                print("\n".join(code[:MAX_DISASS_LENGHT]))
+                print("TRUNCATED BASIC BLOCK")
+            else:
+                print("\n".join(code))
+        else:
+            hook = self.state.project.hooked_by(current_ip)
+            print(hook)
+
+
+
+    def __pstr_codeblock(self, ip) -> str:
+        """Get the pretty version of a basic block with Pygemnts"""
         try:
             code = self.state.project.factory.block(ip).capstone.__str__()
-            highlighed_code = highlight(code, NasmLexer(), TerminalFormatter())
-            print("\n".join(highlighed_code.split('\n')[:20])) #HACK: limit printed lines to 20
+            return highlight(code, NasmLexer(), TerminalFormatter())
         except:
-            self.red("No code at current ip. Please specify self_modifying code ")
+            return self.red("No code at current ip. Please specify self_modifying code ")
+
+
+
 
     def fds(self):
         if [b"", b"", b""] == [self.state.posix.dumps(x) for x in self.state.posix.fd]:
@@ -262,6 +308,7 @@ class Stack():
         if self.state.solver.eval(addr >= self.state.arch.initial_sp):
             raise IndexError
         return addr, self.state.memory.load(addr, size=self.state.arch.bytes, endness=self.state.arch.memory_endness)
+
 
 
 

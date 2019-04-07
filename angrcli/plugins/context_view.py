@@ -88,8 +88,10 @@ class ContextView(SimStatePlugin):
         if self.state.project.loader.find_object_containing(value):
             descr = " <%s>" % self.state.project.loader.describe_addr(value)
             return self.red(hex(value) + descr)
-        if value >= self.state.solver.eval(self.state.regs.sp) and value < self.state.arch.initial_sp:
+        if self.state.solver.eval(self.state.regs.sp) <= value < self.state.arch.initial_sp:
             return self.yellow(hex(value))
+        if self.state.heap.heap_base <= value <= self.state.heap.heap_location:
+            return self.blue(hex(value))
         return hex(value)
 
     def pprint(self):

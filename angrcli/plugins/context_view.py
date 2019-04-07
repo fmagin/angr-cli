@@ -143,17 +143,21 @@ class ContextView(SimStatePlugin):
     def __print_current_codeblock(self):
         current_ip = self.state.solver.eval(self.state.regs.ip)
 
+
+        # Print the location (like main+0x10) if possible
+        print(self.state.project.loader.describe_addr(current_ip))
+
+
+
         # Check if we are at the start of a known function to maybe pretty print the arguments
         try:
             function = self.state.project.kb.functions[current_ip]
         except KeyError:
             pass
         else:
-            #TODO: Implement Call pretty printing here
-            pass
+            if function.calling_convention:
+                print("\n".join(self.pstr_call_info(self.state, function)))
 
-        # Print the location (like main+0x10) if possible
-        print(self.state.project.loader.describe_addr(current_ip))
 
         # Get the current code block about to be executed as pretty disassembly
 
@@ -168,7 +172,6 @@ class ContextView(SimStatePlugin):
         else:
             hook = self.state.project.hooked_by(current_ip)
             print(hook)
-
 
 
     def __pstr_codeblock(self, ip) -> str:
@@ -297,6 +300,27 @@ class ContextView(SimStatePlugin):
         for name, w in self.state.watches.eval:
                 print("%s:\t%s" % (name, w))
         return None
+
+    def pstr_call_info(self, state, function):
+        """
+
+        :param angr.SimState state:
+        :param angr.knowledge_plugins.functions.Function function:
+        :return:
+        """
+        return [ self.pstr_call_argument(*arg) for arg in function.calling_convention.get_arg_info(state)]
+
+    def pstr_call_argument(self, ty, name, location, value):
+        """
+        The input should ideally be the unpacked tuple from one of the list entries of calling_convention.get_arg_info(state)
+        :param angr.sim_type.SimType ty:
+        :param str name:
+        :param angr.calling_conventions.SimFunctionArgument location:
+        :param claripy.ast.BV value:
+        :return:
+        """
+        return "%s %s@%s: %s" %( ty, name, location, self.pstr_ast(value))
+
 
 class Stack():
     def __init__(self, state):

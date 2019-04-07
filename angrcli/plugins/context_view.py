@@ -1,5 +1,6 @@
 import logging
 from angr.calling_conventions import SimFunctionArgument
+from angr.sim_type import *
 
 from angr.state_plugins import SimStatePlugin
 
@@ -245,15 +246,39 @@ class ContextView(SimStatePlugin):
         if o:
             return ""
         else:
-            deref = self.state.mem[addr].uintptr_t.resolved
+            deref = self.state.memory.load(addr, 1)
+            if deref.op == 'Extract':
+                deref = deref.args[2]
+            else:
+                deref = self.state.mem[addr].uintptr_t.resolved
             if deref.concrete or not deref.uninitialized:
                 value = self.state.solver.eval(deref)
                 if not value == addr:
                     return " ──> %s" % self.pstr_ast(deref)
 
-    def pstr_ast(self, ast):
+    def pstr_ast(self, ast, ty=None):
         """Return a pretty string for an AST including a description of the derefed value if it makes sense (i.e. if
-        the ast is concrete and the derefed value is not uninitialized"""
+        the ast is concrete and the derefed value is not uninitialized
+        More complex rendering is possible if type information is supplied
+        """
+        if isinstance(ty, SimTypePointer):
+            if ast.concrete:
+                if isinstance(ty.pts_to, SimTypeChar):
+                    try:
+                        tmp = "%s ──> %s" %(ast, self.state.mem[ast].string)
+                    except ValueError:
+                        deref = self.state.memory.load(ast, 1)
+                        if deref.op == 'Extract':
+                            return "%s ──> %s" % (self.cc(ast), self.cc(deref.args[2]))
+                        elif deref.uninitialized:
+                            return "%s ──> UNINITIALIZED" % (self.cc(ast))
+                        else:
+                            return "%s ──> COMPLEX SYMBOLIC STRING" %(self.cc(ast))
+                    else:
+                        return tmp
+            else:
+                return "%s %s" % (self.red("WARN: Symbolic Pointer"), self.cc(ast))
+
         if ast.concrete:
             value = self.state.solver.eval(ast)
             if ast.op =='BVV' and self.__deref_addr(value):
@@ -319,7 +344,7 @@ class ContextView(SimStatePlugin):
         :param claripy.ast.BV value:
         :return:
         """
-        return "%s %s@%s: %s" %( ty, name, location, self.pstr_ast(value))
+        return "%s %s@%s: %s" %( ty, name, location, self.pstr_ast(value, ty=ty))
 
 
 class Stack():

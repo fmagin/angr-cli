@@ -99,15 +99,31 @@ class ContextView(SimStatePlugin):
         self.state.context_view.code()
         self.state.context_view.fds()
         self.state.context_view.print_stack()
-        self.state.context_view.backtrace()
+        self.state.context_view.print_backtrace()
         self.state.context_view.print_watches()
         return ""
 
-    def backtrace(self):
+    def print_backtrace(self):
         print(self.blue(headerBacktrace))
-        print("Backtrace:\n%s" % "\n".join(
-            "Frame %d: %#x => %#x, sp = %#x" % (i, f.call_site_addr, f.func_addr, f.stack_ptr) for i, f in
-            enumerate(self.state.callstack)))
+        print("\n".join(self.__pstr_backtrace()))
+
+
+    def __pstr_backtrace(self):
+        result = []
+        for i, f in enumerate(self.state.callstack):
+            if self.state.project.loader.find_object_containing(f.call_site_addr):
+                call_site_addr = self.state.project.loader.describe_addr(f.call_site_addr)
+            else:
+                call_site_addr = "%#x" % f.call_site_addr
+            if self.state.project.loader.find_object_containing(f.func_addr):
+                func_addr = self.state.project.loader.describe_addr(f.func_addr)
+            else:
+                func_addr = "%#x" % f.func_addr
+
+            frame = "Frame %d: %s => %s, sp = %#x" % (i, call_site_addr, func_addr, f.stack_ptr)
+
+            result.append(frame)
+        return result
 
     def code(self):
         print(self.blue(headerCode))

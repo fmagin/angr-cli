@@ -71,8 +71,8 @@ class ContextView(SimStatePlugin):
         s += " | " + self.grey("UNINITIALIZED")
         s += " | " + self.yellow("STACK")
         s += " | " + self.blue("HEAP")
-        s += " | " + self.red("CODE")
-        s += " | " + self.magenta("DATA")
+        s += " | " + self.red("CODE R-X")
+        s += " | " + self.magenta("DATA R*-")
         s += " | " + self.underline("RWX")
         s += " | RODATA"
         print(s)
@@ -85,9 +85,17 @@ class ContextView(SimStatePlugin):
             return self.green(self.BVtoREG(bv))
         # its concrete
         value = self.state.solver.eval(bv)
-        if self.state.project.loader.find_object_containing(value):
-            descr = " <%s>" % self.state.project.loader.describe_addr(value)
-            return self.red(hex(value) + descr)
+        obj = self.state.project.loader.find_object_containing(value)
+        if obj:
+            section = obj.find_section_containing(value)
+            if section:
+                if section.is_executable:
+                    descr = " <%s>" % self.state.project.loader.describe_addr(value)
+                    return self.red(hex(value) + descr)
+                if not section.is_executable:
+                    descr = " <%s>" % self.state.project.loader.describe_addr(value)
+                    return self.magenta(hex(value) + descr)
+
         if self.state.solver.eval(self.state.regs.sp) <= value < self.state.arch.initial_sp:
             return self.yellow(hex(value))
         if self.state.heap.heap_base <= value <= self.state.heap.heap_location:
@@ -283,7 +291,7 @@ class ContextView(SimStatePlugin):
             if ast.concrete:
                 if isinstance(ty.pts_to, SimTypeChar):
                     try:
-                        tmp = "%s ──> %s" %(ast, self.state.mem[ast].string)
+                        tmp = "%s ──> %s" %(self.cc(ast), self.state.mem[ast].string.concrete)
                     except ValueError:
                         deref = self.state.memory.load(ast, 1)
                         if deref.op == 'Extract':

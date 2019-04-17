@@ -4,7 +4,7 @@ import random
 def render_ast(ast):
     graph = Digraph()
     def render_rec(graph, ast):
-        if type(ast) in [int, long]:
+        if type(ast) in [int]:
             rand_ident = str(random.randint(1,2**32))
             graph.node(rand_ident, label=hex(ast))
             return rand_ident

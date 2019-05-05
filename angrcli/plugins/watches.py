@@ -15,6 +15,14 @@ class Watches(SimStatePlugin):
     def add_watch(self, watch, name):
         self._watches[name] = watch
 
+    def watch_bv(self, bv, cast_to=None):
+        w = lambda state: state.solver.eval(bv, cast_to=cast_to)
+        self.add_watch(w, bv.args[0].split('_')[0])
+        return w
+
+    def __getitem__(self, key):
+        return self._watches[key](self.state)
+
     @SimStatePlugin.memo
     def copy(self, memo):
         return Watches(watches=self._watches)

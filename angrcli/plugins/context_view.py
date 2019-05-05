@@ -1,4 +1,5 @@
 import logging
+from angr import SimEngineError
 from angr.calling_conventions import SimFunctionArgument
 from angr.sim_type import *
 
@@ -10,6 +11,45 @@ from pygments import highlight
 from pygments.lexers import NasmLexer
 from pygments.formatters import TerminalFormatter
 
+class DisassemblerInterface():
+    def disass_block(self, block) -> [str]:
+        raise NotImplemented
+
+
+class AngrCapstoneDisassembler(DisassemblerInterface):
+    def disass_block(self, block):
+        """
+
+        :param angr.block.Block block:
+        :return:
+        """
+        return str(block.capstone)
+
+
+class GhidraDisassembler(DisassemblerInterface):
+    """
+    This classes uses ghidra_bridge to query the disassembly from Ghidra which automatically resolves structure and variable references
+    ghidra_bridge is a giant hack, don't be confused that this uses variables that shouldn't exist and probably messes with the namespace in weird ways
+    """
+
+    def __init__(self):
+        import ghidra_bridge
+        self._bridge = ghidra_bridge.GhidraBridge(namespace=globals())
+        self._cuf = ghidra.program.model.listing.CodeUnitFormat.DEFAULT
+        self._diss = ghidra.app.util.PseudoDisassembler(currentProgram)
+
+    def disass_block(self, block):
+        """
+
+        :param angr.block.Block block:
+        :return:
+        """
+        result = ""
+        for a in block.instruction_addrs:
+            codeUnit = self._diss.disassemble(currentAddress.getNewAddress(a))
+            result += "0x%x: %s\n" %( a, self._cuf.getRepresentationString(codeUnit))
+        return result
+
 MAX_AST_DEPTH = 5
 MAX_DISASS_LENGHT = 30
 
@@ -20,6 +60,8 @@ headerFDs       = "[ ───────────────────�
 headerStack     = "[ ────────────────────────────────────────────────────────────────────── Stack ── ]"
 headerRegs      = "[ ────────────────────────────────────────────────────────────────── Registers ── ]"
 class ContextView(SimStatePlugin):
+    # Class variable to specify disassembler
+    _disassembler = AngrCapstoneDisassembler()
     def __init__(self):
         super(ContextView, self).__init__()
 
@@ -204,9 +246,10 @@ class ContextView(SimStatePlugin):
     def __pstr_codeblock(self, ip) -> str:
         """Get the pretty version of a basic block with Pygemnts"""
         try:
-            code = self.state.project.factory.block(ip).capstone.__str__()
+            block = self.state.project.factory.block(ip)
+            code = self._disassembler.disass_block(block)
             return highlight(code, NasmLexer(), TerminalFormatter())
-        except:
+        except SimEngineError:
             return self.red("No code at current ip. Please specify self_modifying code ")
 
 

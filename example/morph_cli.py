@@ -3,7 +3,6 @@
 import angr
 import angrcli.plugins.context_view
 from angrcli.interaction.explore import ExploreInteractive
-from angrcli.plugins.context_view import ContextView as cv
 import angrcli.plugins.watches 
 import claripy
 import logging
@@ -13,6 +12,7 @@ logging.getLogger("angr.state_plugins.symbolic_memory").setLevel(logging.ERROR)
 testfile = "./morph"
 p = angr.Project(testfile, support_selfmodifying_code=True,
         load_options={"auto_load_libs":False, 
+        #load_options={"auto_load_libs":True, 
                     'main_opts': {
                         'base_addr': 0x555555554000 # To match gdb
                         }
@@ -20,7 +20,8 @@ p = angr.Project(testfile, support_selfmodifying_code=True,
 argv = claripy.BVS('argv1', 8 * 0x17)
 s = p.factory.entry_state(args=[p.filename, argv])
 
-s.register_plugin("context_view", cv())
+
+#s.register_plugin("context_view", cv())
 
 class NotVeryRand(angr.SimProcedure):
     def run(self, return_values=None):
@@ -40,5 +41,5 @@ s.context_view.pprint()
 e = ExploreInteractive(p, s)
 e.cmdloop()
 
-print("Done!")
+print("Done! e.simgr has the simgr from your session")
 

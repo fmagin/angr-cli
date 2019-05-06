@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 
 import angr
-import angrcli.plugins.context_view
-from angrcli.interaction.explore import ExploreInteractive
-from angrcli.plugins.context_view import ContextView as cv
 import claripy
 import logging
 import pickle
 import IPython
 
+import angrcli.plugins.context_view
+from angrcli.interaction.explore import ExploreInteractive
+from angrcli.plugins.context_view import ContextView as cv
+
 logging.getLogger("angr.engines.vex.engine").setLevel(logging.ERROR)
 logging.getLogger("angr.state_plugins.symbolic_memory").setLevel(logging.ERROR)
+logging.getLogger("angr.sim_manager").setLevel(logging.INFO)
 
 testfile = "./MarsAnalytica"
+
 p = angr.Project(testfile)
+
 string = """ # run this code to generate the original states
 flag = claripy.BVS("flag", 8*19)
 s = p.factory.entry_state(stdin=flag, add_options=angr.options.unicorn)

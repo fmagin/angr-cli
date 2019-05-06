@@ -31,4 +31,6 @@ simgr = p.factory.simgr(s)#, save_unsat=True)
 
 simgr.explore(find=lambda s: winStr in s.posix.dumps(1)) # winStr in stdout
 print("Exploration done! Result:", str(simgr))
+if len(simgr.stashes["found"]) > 0:
+    print(simgr.one_found.solver.eval(argv, cast_to=bytes)
 

@@ -20,3 +20,7 @@ def render_ast(ast):
         return op_node_ident
     render_rec(graph, ast)
     return graph
+
+def ast_to_svg(ast):
+    g = render_ast()
+    g._repr_svg_()

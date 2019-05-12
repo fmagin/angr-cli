@@ -387,7 +387,9 @@ class ContextView(SimStatePlugin):
                (str(idx) + ":\t" if type(idx) is int else "", str_ip, str_jump_guard, vars)
 
     def print_watches(self):
-        if not self.state.watches:
+        try:
+            self.state.watches
+        except AttributeError:
             return
         print(self.blue(headerWatch))
 

@@ -38,6 +38,11 @@ class GhidraDisassembler(DisassemblerInterface):
         self._cuf = ghidra.program.model.listing.CodeUnitFormat.DEFAULT
         self._diss = ghidra.app.util.PseudoDisassembler(currentProgram)
 
+
+    def disass_line(self, addr):
+        codeUnit = self._diss.disassemble(currentAddress.getNewAddress(addr))
+        return "0x%x: %s\n" % (addr, self._cuf.getRepresentationString(codeUnit))
+
     def disass_block(self, block):
         """
 

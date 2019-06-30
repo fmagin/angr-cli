@@ -4,6 +4,7 @@ from angr import SimEngineError
 from angr.calling_conventions import SimFunctionArgument
 from angr.sim_type import *
 
+from angr.storage.paged_memory import BasePage
 from angr.state_plugins import SimStatePlugin
 
 l = logging.getLogger('angr.state_plugins.context_view')
@@ -142,17 +143,24 @@ class ContextView(SimStatePlugin):
                 return self.grey(self.BVtoREG(bv))
             return self.green(self.BVtoREG(bv))
         # its concrete
-        value = self.state.solver.eval(bv)
-        obj = self.state.project.loader.find_object_containing(value)
-        if obj:
-            section = obj.find_section_containing(value)
-            if section:
-                if section.is_executable:
-                    descr = " <%s>" % self.state.project.loader.describe_addr(value)
-                    return self.red(hex(value) + descr)
-                if not section.is_executable:
-                    descr = " <%s>" % self.state.project.loader.describe_addr(value)
-                    return self.magenta(hex(value) + descr)
+        value = self.state.solver.eval(bv, cast_to=int)
+        try:
+            perm = self.state.memory.permissions(value)
+            if not perm.symbolic:
+                perm = self.state.solver.eval(perm, cast_to=int)
+                if perm:
+                    if perm & BasePage.PROT_EXEC:
+                        descr = " <%s>" % self.state.project.loader.describe_addr(value)
+                        if descr == 'not part of a loaded object':
+                            return self.red(hex(value))
+                        return self.red(hex(value) + descr)
+                    else:
+                        descr = " <%s>" % self.state.project.loader.describe_addr(value)
+                        if descr == 'not part of a loaded object':
+                            return self.magenta(hex(value))
+                        return self.magenta(hex(value) + descr)
+        except:
+            pass
 
         if self.state.solver.eval(self.state.regs.sp) <= value < self.state.arch.initial_sp:
             return self.yellow(hex(value))

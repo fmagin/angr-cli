@@ -186,12 +186,12 @@ class ContextView(SimStatePlugin):
         if type(bv) == str:
             return bv
         if "reg" in str(bv):
-            args = list()
+            replname = str(bv)
             for v in self.state.solver.describe_variables(bv):
                 if "reg" in v:
                     ridx = v[1]
                     regname = self.state.arch.register_names[ridx]
-            replname = str(bv).replace("reg_" + hex(ridx)[2:], regname)
+                    replname = replname.replace("reg_" + hex(ridx)[2:], regname)
             return replname
         return str(bv)
 

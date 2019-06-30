@@ -1,4 +1,5 @@
 import logging
+import capstone
 from angr import SimEngineError
 from angr.calling_conventions import SimFunctionArgument
 from angr.sim_type import *
@@ -58,6 +59,14 @@ class GhidraDisassembler(DisassemblerInterface):
 MAX_AST_DEPTH = 5
 MAX_DISASS_LENGHT = 30
 
+# When doing a fallback to Capstone we cannot disasseble by blocks so we
+# procede in a GEF style:
+# print NB_INSTR_PREV instruction before the current,
+# print the current with an arrow,
+# print (MAX_CAP_DIS_LENGHT - NB_INSTR_PREV -1) isntructions after current
+MAX_CAP_DIS_LENGHT = 10
+NB_INSTR_PREV = 4 
+
 headerWatch     = "[ ──────────────────────────────────────────────────────────────────── Watches ── ]"
 headerBacktrace = "[ ────────────────────────────────────────────────────────────────── BackTrace ── ]"
 headerCode      = "[ ─────────────────────────────────────────────────────────────────────── Code ── ]"
@@ -67,8 +76,10 @@ headerRegs      = "[ ───────────────────�
 class ContextView(SimStatePlugin):
     # Class variable to specify disassembler
     _disassembler = AngrCapstoneDisassembler()
-    def __init__(self):
+    def __init__(self, use_only_capstone=False, disable_capstone_fallback=True):
         super(ContextView, self).__init__()
+        self.use_only_capstone = use_only_capstone
+        self.disable_capstone_fallback = disable_capstone_fallback
 
     def set_state(self, state):
         super(ContextView, self).set_state(state)
@@ -76,7 +87,7 @@ class ContextView(SimStatePlugin):
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        return ContextView()
+        return ContextView(self.use_only_capstone, self.disable_capstone_fallback)
 
     def red(self, text):
         return "\x1b[0;31m" + text + "\x1b[0m"
@@ -182,25 +193,78 @@ class ContextView(SimStatePlugin):
             result.append(frame)
         return result
 
+
+    def __cap_disasm(self, ip) -> str:
+        md = capstone.Cs(self.state.project.arch.cs_arch, self.state.project.arch.cs_mode)
+        
+        disasm_start = ip
+        for i in range(15 * NB_INSTR_PREV, 0, -1):
+        
+            mem = self.state.memory.load(ip -i, i + 15)
+            if mem.symbolic:
+                break
+            
+            mem = self.state.solver.eval(mem, cast_to=bytes)
+            
+            cnt = 0
+            last_instr = None
+            for instr in md.disasm(mem, ip -i):
+                if cnt == NB_INSTR_PREV:
+                    last_instr = instr
+                    break
+                cnt += 1
+
+            if last_instr is not None and last_instr.address == ip:
+                disasm_start = ip -i
+                break
+
+        code = ""
+        mem = self.state.memory.load(disasm_start, MAX_CAP_DIS_LENGHT * 15)
+        if mem.symbolic:
+            return self.red("Instructions are symbolic!")
+
+        mem = self.state.solver.eval(mem, cast_to=bytes)
+
+        cnt = 0
+        md = capstone.Cs(self.state.project.arch.cs_arch, self.state.project.arch.cs_mode)
+        for instr in md.disasm(mem, disasm_start):
+            if instr.address == ip:
+                code += " --> "
+            else:
+                code += "     "
+            code += "0x%x:\t%s\t%s\n" % (instr.address, instr.mnemonic, instr.op_str)
+            if cnt == MAX_CAP_DIS_LENGHT: break
+            cnt += 1
+        
+        return highlight(code, NasmLexer(), TerminalFormatter())
+
     def code(self):
         print(self.blue(headerCode))
-        try:
-            self.__print_previous_codeblock()
-            print("\t|\t" + self.cc(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
-        except:
-            pass
+        if not self.use_only_capstone:
+            try:
+                self.__print_previous_codeblock()
+                print("\t|\t" + self.cc(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
+            except:
+                pass
         self.__print_current_codeblock()
 
     def __print_previous_codeblock(self):
         prev_ip = self.state.history.bbl_addrs[-1]
 
-
-        print(self.state.project.loader.describe_addr(prev_ip))
-
-
+        # Print the location (like main+0x10) if possible
+        descr = self.state.project.loader.describe_addr(prev_ip)
+        if descr != 'not part of a loaded object':
+            print(descr)
 
         if not self.state.project.is_hooked(prev_ip):
-            code = self.__pstr_codeblock(prev_ip).split("\n")
+            code = self.__pstr_codeblock(prev_ip)
+            if code == None:
+                if self.disable_capstone_fallback:
+                    code = self.red("No code at current ip. Please specify self_modifying code ")
+                else:
+                    raise Exception() # skip print of previous
+            code = code.split("\n")
+            
             # if it is longer than MAX_DISASS_LENGTH, only print the first lines
             if len(code) >= MAX_DISASS_LENGHT:
                 print("TRUNCATED BASIC BLOCK")
@@ -219,8 +283,9 @@ class ContextView(SimStatePlugin):
 
 
         # Print the location (like main+0x10) if possible
-        print(self.state.project.loader.describe_addr(current_ip))
-
+        descr = self.state.project.loader.describe_addr(current_ip)
+        if descr != 'not part of a loaded object':
+            print(descr)
 
 
         # Check if we are at the start of a known function to maybe pretty print the arguments
@@ -234,9 +299,18 @@ class ContextView(SimStatePlugin):
 
 
         # Get the current code block about to be executed as pretty disassembly
-
         if not self.state.project.is_hooked(current_ip):
-            code = self.__pstr_codeblock(current_ip).split("\n")
+            if self.use_only_capstone:
+                code = self.__cap_disasm(current_ip)
+            else:
+                code = self.__pstr_codeblock(current_ip)
+                if code == None:
+                    if self.disable_capstone_fallback:
+                        code = self.red("No code at current ip. Please specify self_modifying code ")
+                    else:
+                        code = self.__cap_disasm(current_ip) # do fallback to Capstone
+            code = code.split("\n")
+            
             # if it is longer than MAX_DISASS_LENGTH, only print the first lines
             if len(code) >= MAX_DISASS_LENGHT:
                 print("\n".join(code[:MAX_DISASS_LENGHT]))
@@ -255,7 +329,7 @@ class ContextView(SimStatePlugin):
             code = self._disassembler.disass_block(block)
             return highlight(code, NasmLexer(), TerminalFormatter())
         except SimEngineError:
-            return self.red("No code at current ip. Please specify self_modifying code ")
+            return None
 
 
 

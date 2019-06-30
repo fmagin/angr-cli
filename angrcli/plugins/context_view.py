@@ -144,6 +144,12 @@ class ContextView(SimStatePlugin):
             return self.green(self.BVtoREG(bv))
         # its concrete
         value = self.state.solver.eval(bv, cast_to=int)
+        
+        if self.state.solver.eval(self.state.regs.sp) <= value < self.state.arch.initial_sp:
+            return self.yellow(hex(value))
+        if self.state.heap.heap_base <= value <= self.state.heap.heap_location:
+            return self.blue(hex(value))
+        
         try:
             perm = self.state.memory.permissions(value)
             if not perm.symbolic:
@@ -162,10 +168,6 @@ class ContextView(SimStatePlugin):
         except:
             pass
 
-        if self.state.solver.eval(self.state.regs.sp) <= value < self.state.arch.initial_sp:
-            return self.yellow(hex(value))
-        if self.state.heap.heap_base <= value <= self.state.heap.heap_location:
-            return self.blue(hex(value))
         return hex(value)
 
     def pprint(self):
@@ -398,10 +400,7 @@ class ContextView(SimStatePlugin):
         return self.__deref_addr(addr)
 
     def __deref_addr(self, addr, depth=0):
-        o = self.state.project.loader.find_object_containing(addr)
-        if o:
-            return ""
-        else:
+        if addr in self.state.memory:
             deref = self.state.memory.load(addr, 1)
             if deref.op == 'Extract':
                 deref = deref.args[2]
@@ -409,17 +408,17 @@ class ContextView(SimStatePlugin):
                 deref = self.state.mem[addr].uintptr_t.resolved
             if deref.concrete or not deref.uninitialized:
                 value = self.state.solver.eval(deref)
-                if not value == addr:
-                    return " ──> %s" % self.pstr_ast(deref)
+                if not value == addr and not value == 0 and depth < MAX_AST_DEPTH:
+                    return " ──> %s" % self.pstr_ast(deref, depth=depth+1)
+        return ""
 
-    def pstr_ast(self, ast, ty=None):
+    def pstr_ast(self, ast, ty=None, depth=0):
         """Return a pretty string for an AST including a description of the derefed value if it makes sense (i.e. if
         the ast is concrete and the derefed value is not uninitialized
         More complex rendering is possible if type information is supplied
         """
         if isinstance(ty, SimTypePointer):
             if ast.concrete:
-                if isinstance(ty.pts_to, SimTypeChar):
                     try:
                         tmp = "%s ──> %s" %(self.cc(ast), self.state.mem[ast].string.concrete)
                     except ValueError:
@@ -437,8 +436,8 @@ class ContextView(SimStatePlugin):
 
         if ast.concrete:
             value = self.state.solver.eval(ast)
-            if ast.op =='BVV' and self.__deref_addr(value):
-                return self.cc(ast) + self.__deref_addr(value)
+            if ast.op =='BVV' and self.__deref_addr(value, depth+1):
+                return self.cc(ast) + self.__deref_addr(value, depth+1)
             else:
                 return self.cc(ast)
         else:

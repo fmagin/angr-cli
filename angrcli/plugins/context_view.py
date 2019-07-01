@@ -13,19 +13,83 @@ from pygments import highlight
 from pygments.lexers import NasmLexer
 from pygments.formatters import TerminalFormatter
 
+MAX_AST_DEPTH = 5
+MAX_DISASS_LENGHT = 30
+
+# When doing a fallback to Capstone we cannot disasseble by blocks so we
+# procede in a GEF style:
+# print NB_INSTR_PREV instruction before the current,
+# print the current with an arrow,
+# print (MAX_CAP_DIS_LENGHT - NB_INSTR_PREV -1) isntructions after current
+MAX_CAP_DIS_LENGHT = 10
+NB_INSTR_PREV = 4 
+
 class DisassemblerInterface():
-    def disass_block(self, block) -> [str]:
+    def block_disass(self, block, ctx_view) -> [str]:
+        raise NotImplemented
+    
+    def linear_disass(self, ip, ctx_view) -> [str]:
         raise NotImplemented
 
 
 class AngrCapstoneDisassembler(DisassemblerInterface):
-    def disass_block(self, block):
+    def block_disass(self, block, ctx_view):
         """
 
         :param angr.block.Block block:
+        :param angrcli.plugins.context_view.ContextView ctx_view:
         :return:
         """
         return str(block.capstone)
+
+    def linear_disass(self, ip, ctx_view) -> [str]:
+        """
+
+        :param int ip:
+        :param angrcli.plugins.context_view.ContextView ctx_view:
+        :return:
+        """
+        md = capstone.Cs(ctx_view.state.project.arch.cs_arch, ctx_view.state.project.arch.cs_mode)
+        
+        disasm_start = ip
+        for i in range(15 * NB_INSTR_PREV, 0, -1):
+        
+            mem = ctx_view.state.memory.load(ip -i, i + 15)
+            if mem.symbolic:
+                break
+            
+            mem = ctx_view.state.solver.eval(mem, cast_to=bytes)
+            
+            cnt = 0
+            last_instr = None
+            for instr in md.disasm(mem, ip -i):
+                if cnt == NB_INSTR_PREV:
+                    last_instr = instr
+                    break
+                cnt += 1
+
+            if last_instr is not None and last_instr.address == ip:
+                disasm_start = ip -i
+                break
+
+        code = ""
+        mem = ctx_view.state.memory.load(disasm_start, MAX_CAP_DIS_LENGHT * 15)
+        if mem.symbolic:
+            return ctx_view.red("Instructions are symbolic!")
+
+        mem = ctx_view.state.solver.eval(mem, cast_to=bytes)
+
+        cnt = 0
+        md = capstone.Cs(ctx_view.state.project.arch.cs_arch, ctx_view.state.project.arch.cs_mode)
+        for instr in md.disasm(mem, disasm_start):
+            if instr.address == ip:
+                code += " --> "
+            else:
+                code += "     "
+            code += "0x%x:\t%s\t%s\n" % (instr.address, instr.mnemonic, instr.op_str)
+            if cnt == MAX_CAP_DIS_LENGHT: break
+            cnt += 1
+        return code
 
 
 class GhidraDisassembler(DisassemblerInterface):
@@ -45,7 +109,7 @@ class GhidraDisassembler(DisassemblerInterface):
         codeUnit = self._diss.disassemble(currentAddress.getNewAddress(addr))
         return "0x%x: %s\n" % (addr, self._cuf.getRepresentationString(codeUnit))
 
-    def disass_block(self, block):
+    def block_disass(self, block, ctx_view):
         """
 
         :param angr.block.Block block:
@@ -57,16 +121,15 @@ class GhidraDisassembler(DisassemblerInterface):
             result += "0x%x: %s\n" %( a, self._cuf.getRepresentationString(codeUnit))
         return result
 
-MAX_AST_DEPTH = 5
-MAX_DISASS_LENGHT = 30
+    def linear_disass(self, ip, ctx_view) -> [str]:
+        """
 
-# When doing a fallback to Capstone we cannot disasseble by blocks so we
-# procede in a GEF style:
-# print NB_INSTR_PREV instruction before the current,
-# print the current with an arrow,
-# print (MAX_CAP_DIS_LENGHT - NB_INSTR_PREV -1) isntructions after current
-MAX_CAP_DIS_LENGHT = 10
-NB_INSTR_PREV = 4 
+        :param int ip:
+        :param angrcli.plugins.context_view.ContextView ctx_view:
+        :return:
+        """
+        raise NotImplemented # TODO
+
 
 headerWatch     = "[ ──────────────────────────────────────────────────────────────────── Watches ── ]"
 headerBacktrace = "[ ────────────────────────────────────────────────────────────────── BackTrace ── ]"
@@ -77,10 +140,10 @@ headerRegs      = "[ ───────────────────�
 class ContextView(SimStatePlugin):
     # Class variable to specify disassembler
     _disassembler = AngrCapstoneDisassembler()
-    def __init__(self, use_only_capstone=False, disable_capstone_fallback=True):
+    def __init__(self, use_only_linear_disasm=False, disable_linear_disasm_fallback=True):
         super(ContextView, self).__init__()
-        self.use_only_capstone = use_only_capstone
-        self.disable_capstone_fallback = disable_capstone_fallback
+        self.use_only_linear_disasm = use_only_linear_disasm
+        self.disable_linear_disasm_fallback = disable_linear_disasm_fallback
 
     def set_state(self, state):
         super(ContextView, self).set_state(state)
@@ -88,7 +151,7 @@ class ContextView(SimStatePlugin):
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        return ContextView(self.use_only_capstone, self.disable_capstone_fallback)
+        return ContextView(self.use_only_linear_disasm, self.disable_linear_disasm_fallback)
 
     def red(self, text):
         return "\x1b[0;31m" + text + "\x1b[0m"
@@ -203,54 +266,9 @@ class ContextView(SimStatePlugin):
             result.append(frame)
         return result
 
-
-    def __cap_disasm(self, ip) -> str:
-        md = capstone.Cs(self.state.project.arch.cs_arch, self.state.project.arch.cs_mode)
-        
-        disasm_start = ip
-        for i in range(15 * NB_INSTR_PREV, 0, -1):
-        
-            mem = self.state.memory.load(ip -i, i + 15)
-            if mem.symbolic:
-                break
-            
-            mem = self.state.solver.eval(mem, cast_to=bytes)
-            
-            cnt = 0
-            last_instr = None
-            for instr in md.disasm(mem, ip -i):
-                if cnt == NB_INSTR_PREV:
-                    last_instr = instr
-                    break
-                cnt += 1
-
-            if last_instr is not None and last_instr.address == ip:
-                disasm_start = ip -i
-                break
-
-        code = ""
-        mem = self.state.memory.load(disasm_start, MAX_CAP_DIS_LENGHT * 15)
-        if mem.symbolic:
-            return self.red("Instructions are symbolic!")
-
-        mem = self.state.solver.eval(mem, cast_to=bytes)
-
-        cnt = 0
-        md = capstone.Cs(self.state.project.arch.cs_arch, self.state.project.arch.cs_mode)
-        for instr in md.disasm(mem, disasm_start):
-            if instr.address == ip:
-                code += " --> "
-            else:
-                code += "     "
-            code += "0x%x:\t%s\t%s\n" % (instr.address, instr.mnemonic, instr.op_str)
-            if cnt == MAX_CAP_DIS_LENGHT: break
-            cnt += 1
-        
-        return highlight(code, NasmLexer(), TerminalFormatter())
-
     def code(self):
         print(self.blue(headerCode))
-        if not self.use_only_capstone:
+        if not self.use_only_linear_disasm:
             try:
                 self.__print_previous_codeblock()
                 print("\t|\t" + self.cc(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
@@ -269,7 +287,7 @@ class ContextView(SimStatePlugin):
         if not self.state.project.is_hooked(prev_ip):
             code = self.__pstr_codeblock(prev_ip)
             if code == None:
-                if self.disable_capstone_fallback:
+                if self.disable_linear_disasm_fallback:
                     code = self.red("No code at current ip. Please specify self_modifying code ")
                 else:
                     raise Exception() # skip print of previous
@@ -310,15 +328,15 @@ class ContextView(SimStatePlugin):
 
         # Get the current code block about to be executed as pretty disassembly
         if not self.state.project.is_hooked(current_ip):
-            if self.use_only_capstone:
-                code = self.__cap_disasm(current_ip)
+            if self.use_only_linear_disasm:
+                code = self.__pstr_codelinear(current_ip)
             else:
                 code = self.__pstr_codeblock(current_ip)
                 if code == None:
-                    if self.disable_capstone_fallback:
+                    if self.disable_linear_disasm_fallback:
                         code = self.red("No code at current ip. Please specify self_modifying code ")
                     else:
-                        code = self.__cap_disasm(current_ip) # do fallback to Capstone
+                        code = self.__pstr_codelinear(current_ip) # do fallback to Capstone
             code = code.split("\n")
             
             # if it is longer than MAX_DISASS_LENGTH, only print the first lines
@@ -336,11 +354,15 @@ class ContextView(SimStatePlugin):
         """Get the pretty version of a basic block with Pygemnts"""
         try:
             block = self.state.project.factory.block(ip)
-            code = self._disassembler.disass_block(block)
+            code = self._disassembler.block_disass(block, self)
             return highlight(code, NasmLexer(), TerminalFormatter())
         except SimEngineError:
             return None
 
+    def __pstr_codelinear(self, ip) -> str:
+        """Get the pretty version of linear disasm with Pygemnts"""
+        code = self._disassembler.linear_disass(ip, self)
+        return highlight(code, NasmLexer(), TerminalFormatter())
 
 
 

@@ -199,19 +199,19 @@ class ContextView(SimStatePlugin):
         s += " | RODATA"
         print(s)
 
-    def cc(self, bv):
-        """Takes a BV and returns a colored string"""
+    def __cc(self, bv):
+        """Takes a BV and returns tuple (colored string, is code bool)"""
         if bv.symbolic:
             if bv.uninitialized:
-                return self.grey(self.BVtoREG(bv))
-            return self.green(self.BVtoREG(bv))
+                return self.grey(self.BVtoREG(bv)), False
+            return self.green(self.BVtoREG(bv)), False
         # its concrete
         value = self.state.solver.eval(bv, cast_to=int)
         
         if self.state.solver.eval(self.state.regs.sp) <= value < self.state.arch.initial_sp:
-            return self.yellow(hex(value))
+            return self.yellow(hex(value)), False
         if self.state.heap.heap_base <= value <= self.state.heap.heap_location:
-            return self.blue(hex(value))
+            return self.blue(hex(value)), False
         
         try:
             perm = self.state.memory.permissions(value)
@@ -221,17 +221,21 @@ class ContextView(SimStatePlugin):
                     if perm & BasePage.PROT_EXEC:
                         descr = " <%s>" % self.state.project.loader.describe_addr(value)
                         if descr == 'not part of a loaded object':
-                            return self.red(hex(value))
-                        return self.red(hex(value) + descr)
+                            return self.red(hex(value)), True
+                        return self.red(hex(value) + descr), True
                     else:
                         descr = " <%s>" % self.state.project.loader.describe_addr(value)
                         if descr == 'not part of a loaded object':
-                            return self.magenta(hex(value))
-                        return self.magenta(hex(value) + descr)
+                            return self.magenta(hex(value)), False
+                        return self.magenta(hex(value) + descr), False
         except:
             pass
 
-        return hex(value)
+        return hex(value), False
+
+    def cc(self, bv):
+        """Takes a BV and returns a colored string"""
+        return self.__cc(bv)[0]
 
     def pprint(self):
         """Pretty context view similiar to the context view of gdb plugins (peda and pwndbg)"""
@@ -441,27 +445,31 @@ class ContextView(SimStatePlugin):
         """
         if isinstance(ty, SimTypePointer):
             if ast.concrete:
-                    try:
-                        tmp = "%s ──> %s" %(self.cc(ast), self.state.mem[ast].string.concrete)
-                    except ValueError:
-                        deref = self.state.memory.load(ast, 1)
-                        if deref.op == 'Extract':
-                            return "%s ──> %s" % (self.cc(ast), self.cc(deref.args[2]))
-                        elif deref.uninitialized:
-                            return "%s ──> UNINITIALIZED" % (self.cc(ast))
-                        else:
-                            return "%s ──> COMPLEX SYMBOLIC STRING" %(self.cc(ast))
+                cc_ast, ast_is_code_ptr = self.__cc(ast)
+                if ast_is_code_ptr:
+                    return cc_ast
+                try:
+                    tmp = "%s ──> %s" % (cc_ast, repr(self.state.mem[ast].string.concrete))
+                except ValueError:
+                    deref = self.state.memory.load(ast, 1)
+                    if deref.op == 'Extract':
+                        return "%s ──> %s" % (cc_ast, self.cc(deref.args[2]))
+                    elif deref.uninitialized:
+                        return "%s ──> UNINITIALIZED" % (cc_ast)
                     else:
-                        return tmp
+                        return "%s ──> COMPLEX SYMBOLIC STRING" % (cc_ast)
+                else:
+                    return tmp
             else:
                 return "%s %s" % (self.red("WARN: Symbolic Pointer"), self.cc(ast))
 
         if ast.concrete:
             value = self.state.solver.eval(ast)
-            if ast.op =='BVV' and self.__deref_addr(value, depth+1):
-                return self.cc(ast) + self.__deref_addr(value, depth+1)
+            cc_ast, ast_is_code_ptr = self.__cc(ast)
+            if not ast_is_code_ptr and ast.op =='BVV' and self.__deref_addr(value, depth+1):
+                return cc_ast + self.__deref_addr(value, depth+1)
             else:
-                return self.cc(ast)
+                return cc_ast
         else:
             if ast.depth > MAX_AST_DEPTH:
                 # AST is probably too large to render

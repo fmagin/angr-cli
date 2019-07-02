@@ -5,6 +5,9 @@ from angr import SimEngineError
 from angr.calling_conventions import SimFunctionArgument
 from angr.sim_type import *
 
+
+import angr # type annotations; pylint: disable=unused-import
+
 from angr.storage.paged_memory import BasePage
 from angr.state_plugins import SimStatePlugin
 
@@ -55,7 +58,7 @@ class AngrCapstoneDisassembler(DisassemblerInterface):
         disasm_start = ip
         for i in range(15 * NB_INSTR_PREV, 0, -1):
         
-            mem = ctx_view.state.memory.load(ip -i, i + 15)
+            mem = ctx_view.state.memory.load(ip -i, i + 15, inspect=False, disable_actions=True)
             if mem.symbolic:
                 break
             
@@ -145,6 +148,7 @@ class ContextView(SimStatePlugin):
     # Class variable to specify disassembler
     _disassembler = AngrCapstoneDisassembler()
     def __init__(self, use_only_linear_disasm=False, disable_linear_disasm_fallback=True):
+        self.state = None  # type: angr.SimState
         super(ContextView, self).__init__()
         self.use_only_linear_disasm = use_only_linear_disasm
         self.disable_linear_disasm_fallback = disable_linear_disasm_fallback
@@ -243,6 +247,8 @@ class ContextView(SimStatePlugin):
 
     def pprint(self):
         """Pretty context view similiar to the context view of gdb plugins (peda and pwndbg)"""
+        self.state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
+        self.state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
         self.print_legend()
         self.state.context_view.registers()
         self.state.context_view.code()
@@ -250,6 +256,8 @@ class ContextView(SimStatePlugin):
         self.state.context_view.print_stack()
         self.state.context_view.print_backtrace()
         self.state.context_view.print_watches()
+        self.state.options.remove(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
+        self.state.options.remove(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
         return ""
 
     def print_backtrace(self):
@@ -419,7 +427,7 @@ class ContextView(SimStatePlugin):
         print(self.blue(headerRegs))
         for reg in self.default_registers():
             register_number = self.state.arch.registers[reg][0]
-            self.__pprint_register(reg, self.state.registers.load(register_number))
+            self.__pprint_register(reg, self.state.registers.load(register_number, inspect=False, disable_actions=True))
 
     def __pprint_register(self, reg, value):
         repr = reg.upper() + ":\t"
@@ -431,7 +439,7 @@ class ContextView(SimStatePlugin):
 
     def __deref_addr(self, addr, depth=0):
         if addr in self.state.memory:
-            deref = self.state.memory.load(addr, 1)
+            deref = self.state.memory.load(addr, 1, inspect=False, disable_actions=True)
             if deref.op == 'Extract':
                 deref = deref.args[2]
             else:
@@ -455,7 +463,7 @@ class ContextView(SimStatePlugin):
                 try:
                     tmp = "%s ──> %s" % (cc_ast, repr(self.state.mem[ast].string.concrete))
                 except ValueError:
-                    deref = self.state.memory.load(ast, 1)
+                    deref = self.state.memory.load(ast, 1, inspect=False, disable_actions=True)
                     if deref.op == 'Extract':
                         return "%s ──> %s" % (cc_ast, self.cc(deref.args[2]))
                     elif deref.uninitialized:
@@ -540,14 +548,14 @@ class ContextView(SimStatePlugin):
 
 class Stack():
     def __init__(self, state):
-        self.state = state
+        self.state = state # type: angr.SimState
 
     def __getitem__(self, offset):
         """Returns a tuple of a stack element as (addr, content)"""
         addr = self.state.regs.sp + offset * self.state.arch.bytes
         if self.state.solver.eval(addr >= self.state.arch.initial_sp):
             raise IndexError
-        return addr, self.state.memory.load(addr, size=self.state.arch.bytes, endness=self.state.arch.memory_endness)
+        return addr, self.state.memory.load(addr, size=self.state.arch.bytes, endness=self.state.arch.memory_endness, inspect=False, disable_actions=True)
 
 
 

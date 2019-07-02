@@ -1,5 +1,6 @@
 import logging
 import capstone
+import claripy
 from angr import SimEngineError
 from angr.calling_conventions import SimFunctionArgument
 from angr.sim_type import *
@@ -75,7 +76,10 @@ class AngrCapstoneDisassembler(DisassemblerInterface):
         code = ""
         mem = ctx_view.state.memory.load(disasm_start, MAX_CAP_DIS_LENGHT * 15)
         if mem.symbolic:
-            return ctx_view.red("Instructions are symbolic!")
+            if isinstance(mem.args[0], claripy.ast.bv.BV) and not mem.args[0].symbolic:
+                mem = mem.args[0]
+            else:
+                return ctx_view.red("Instructions are symbolic!")
 
         mem = ctx_view.state.solver.eval(mem, cast_to=bytes)
 

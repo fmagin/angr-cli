@@ -1,12 +1,15 @@
-import logging
-import capstone
-import claripy
 from angr import SimEngineError
-from angr.calling_conventions import SimFunctionArgument
 from angr.sim_type import *
 
 
+
+
 import angr # type annotations; pylint: disable=unused-import
+from typing import Optional
+
+from angrcli.plugins.ContextView.disassemblers import AngrCapstoneDisassembler
+from .colors import Color
+
 
 from angr.storage.paged_memory import BasePage
 from angr.state_plugins import SimStatePlugin
@@ -18,124 +21,16 @@ from pygments.lexers import NasmLexer
 from pygments.formatters import TerminalFormatter
 
 MAX_AST_DEPTH = 5
-MAX_DISASS_LENGHT = 30
 
 # When doing a fallback to Capstone we cannot disasseble by blocks so we
 # procede in a GEF style:
 # print NB_INSTR_PREV instruction before the current,
 # print the current with an arrow,
 # print (MAX_CAP_DIS_LENGHT - NB_INSTR_PREV -1) isntructions after current
-MAX_CAP_DIS_LENGHT = 10
-NB_INSTR_PREV = 4 
-
-class DisassemblerInterface():
-    def block_disass(self, block, ctx_view) -> [str]:
-        raise NotImplemented
-    
-    def linear_disass(self, ip, ctx_view) -> [str]:
-        raise NotImplemented
 
 
-class AngrCapstoneDisassembler(DisassemblerInterface):
-    def block_disass(self, block, ctx_view):
-        """
-
-        :param angr.block.Block block:
-        :param angrcli.plugins.context_view.ContextView ctx_view:
-        :return:
-        """
-        return str(block.capstone)
-
-    def linear_disass(self, ip, ctx_view) -> [str]:
-        """
-
-        :param int ip:
-        :param angrcli.plugins.context_view.ContextView ctx_view:
-        :return:
-        """
-        md = capstone.Cs(ctx_view.state.project.arch.cs_arch, ctx_view.state.project.arch.cs_mode)
-        
-        disasm_start = ip
-        for i in range(15 * NB_INSTR_PREV, 0, -1):
-        
-            mem = ctx_view.state.memory.load(ip -i, i + 15, inspect=False, disable_actions=True)
-            if mem.symbolic:
-                break
-            
-            mem = ctx_view.state.solver.eval(mem, cast_to=bytes)
-            
-            cnt = 0
-            last_instr = None
-            for instr in md.disasm(mem, ip -i):
-                if cnt == NB_INSTR_PREV:
-                    last_instr = instr
-                    break
-                cnt += 1
-
-            if last_instr is not None and last_instr.address == ip:
-                disasm_start = ip -i
-                break
-
-        code = ""
-        mem = ctx_view.state.memory.load(disasm_start, MAX_CAP_DIS_LENGHT * 15)
-        if mem.symbolic:
-            if isinstance(mem.args[0], claripy.ast.bv.BV) and not mem.args[0].symbolic:
-                mem = mem.args[0]
-            else:
-                return ctx_view.red("Instructions are symbolic!")
-
-        mem = ctx_view.state.solver.eval(mem, cast_to=bytes)
-
-        cnt = 0
-        md = capstone.Cs(ctx_view.state.project.arch.cs_arch, ctx_view.state.project.arch.cs_mode)
-        for instr in md.disasm(mem, disasm_start):
-            if instr.address == ip:
-                code += " --> "
-            else:
-                code += "     "
-            code += "0x%x:\t%s\t%s\n" % (instr.address, instr.mnemonic, instr.op_str)
-            if cnt == MAX_CAP_DIS_LENGHT: break
-            cnt += 1
-        return code
 
 
-class GhidraDisassembler(DisassemblerInterface):
-    """
-    This classes uses ghidra_bridge to query the disassembly from Ghidra which automatically resolves structure and variable references
-    ghidra_bridge is a giant hack, don't be confused that this uses variables that shouldn't exist and probably messes with the namespace in weird ways
-    """
-
-    def __init__(self):
-        import ghidra_bridge
-        self._bridge = ghidra_bridge.GhidraBridge(namespace=globals())
-        self._cuf = ghidra.program.model.listing.CodeUnitFormat.DEFAULT
-        self._diss = ghidra.app.util.PseudoDisassembler(currentProgram)
-
-
-    def disass_line(self, addr):
-        codeUnit = self._diss.disassemble(currentAddress.getNewAddress(addr))
-        return "0x%x: %s\n" % (addr, self._cuf.getRepresentationString(codeUnit))
-
-    def block_disass(self, block, ctx_view):
-        """
-
-        :param angr.block.Block block:
-        :return:
-        """
-        result = ""
-        for a in block.instruction_addrs:
-            codeUnit = self._diss.disassemble(currentAddress.getNewAddress(a))
-            result += "0x%x: %s\n" %( a, self._cuf.getRepresentationString(codeUnit))
-        return result
-
-    def linear_disass(self, ip, ctx_view) -> [str]:
-        """
-
-        :param int ip:
-        :param angrcli.plugins.context_view.ContextView ctx_view:
-        :return:
-        """
-        raise NotImplemented # TODO
 
 
 headerWatch     = "[ ──────────────────────────────────────────────────────────────────── Watches ── ]"
@@ -161,27 +56,6 @@ class ContextView(SimStatePlugin):
     def copy(self, memo):
         return ContextView(self.use_only_linear_disasm, self.disable_linear_disasm_fallback)
 
-    def red(self, text):
-        return "\x1b[0;31m" + text + "\x1b[0m"
-
-    def blue(self, text):
-        return "\x1b[0;34m" + text + "\x1b[0m"
-
-    def green(self, text):
-        return "\x1b[0;32m" + text + "\x1b[0m"
-
-    def yellow(self, text):
-        return "\x1b[0;33m" + text + "\x1b[0m"
-
-    def magenta(self, text):
-        return "\x1b[0;35m" + text + "\x1b[0m"
-
-    def underline(self, text):
-        return "\x1b[4m" + text + "\x1b[0m"
-
-    def grey(self, text):
-        return "\x1b[40;90;32m" + text + "\x1b[0m"
-
     def BVtoREG(self, bv):
         if type(bv) == str:
             return bv
@@ -197,13 +71,13 @@ class ContextView(SimStatePlugin):
 
     def print_legend(self):
         s = "LEGEND: "
-        s += self.green("SYMBOLIC")
-        s += " | " + self.grey("UNINITIALIZED")
-        s += " | " + self.yellow("STACK")
-        s += " | " + self.blue("HEAP")
-        s += " | " + self.red("CODE R-X")
-        s += " | " + self.magenta("DATA R*-")
-        s += " | " + self.underline("RWX")
+        s += Color.greenify("SYMBOLIC")
+        s += " | " + Color.grayify("UNINITIALIZED")
+        s += " | " + Color.yellowify("STACK")
+        s += " | " + Color.blueify("HEAP")
+        s += " | " + Color.redify("CODE R-X")
+        s += " | " + Color.pinkify("DATA R*-")
+        s += " | " + Color.underlinify("RWX")
         s += " | RODATA"
         print(s)
 
@@ -211,15 +85,15 @@ class ContextView(SimStatePlugin):
         """Takes a BV and returns tuple (colored string, is code bool)"""
         if bv.symbolic:
             if bv.uninitialized:
-                return self.grey(self.BVtoREG(bv)), False
-            return self.green(self.BVtoREG(bv)), False
+                return Color.grayify(self.BVtoREG(bv)), False
+            return Color.greenify(self.BVtoREG(bv)), False
         # its concrete
         value = self.state.solver.eval(bv, cast_to=int)
         
         if self.state.solver.eval(self.state.regs.sp) <= value < self.state.arch.initial_sp:
-            return self.yellow(hex(value)), False
+            return Color.yellowify(hex(value)), False
         if self.state.heap.heap_base <= value <= self.state.heap.heap_location:
-            return self.blue(hex(value)), False
+            return Color.blueify(hex(value)), False
         
         try:
             perm = self.state.memory.permissions(value)
@@ -229,13 +103,13 @@ class ContextView(SimStatePlugin):
                     if perm & BasePage.PROT_EXEC:
                         descr = " <%s>" % self.state.project.loader.describe_addr(value)
                         if descr == 'not part of a loaded object':
-                            return self.red(hex(value)), True
-                        return self.red(hex(value) + descr), True
+                            return Color.redify(hex(value)), True
+                        return Color.redify(hex(value) + descr), True
                     else:
                         descr = " <%s>" % self.state.project.loader.describe_addr(value)
                         if descr == 'not part of a loaded object':
-                            return self.magenta(hex(value)), False
-                        return self.magenta(hex(value) + descr), False
+                            return Color.pinkify(hex(value)), False
+                        return Color.pinkify(hex(value) + descr), False
         except:
             pass
 
@@ -261,7 +135,7 @@ class ContextView(SimStatePlugin):
         return ""
 
     def print_backtrace(self):
-        print(self.blue(headerBacktrace))
+        print(Color.blueify(headerBacktrace))
         print("\n".join(self.__pstr_backtrace()))
 
 
@@ -283,7 +157,7 @@ class ContextView(SimStatePlugin):
         return result
 
     def code(self):
-        print(self.blue(headerCode))
+        print(Color.blueify(headerCode))
         if not self.use_only_linear_disasm:
             try:
                 self.__print_previous_codeblock()
@@ -304,15 +178,15 @@ class ContextView(SimStatePlugin):
             code = self.__pstr_codeblock(prev_ip)
             if code == None:
                 if self.disable_linear_disasm_fallback:
-                    code = self.red("No code at current ip. Please specify self_modifying code ")
+                    code = Color.redify("No code at current ip. Please specify self_modifying code ")
                 else:
                     raise Exception() # skip print of previous
             code = code.split("\n")
             
             # if it is longer than MAX_DISASS_LENGTH, only print the first lines
-            if len(code) >= MAX_DISASS_LENGHT:
+            if len(code) >= self._disassembler.MAX_DISASS_LENGHT:
                 print("TRUNCATED BASIC BLOCK")
-                print("\n".join(code[-MAX_DISASS_LENGHT:]))
+                print("\n".join(code[-self._disassembler.MAX_DISASS_LENGHT:]))
             else:
                 print("\n".join(code))
             return
@@ -322,14 +196,19 @@ class ContextView(SimStatePlugin):
 
 
 
-    def __print_current_codeblock(self):
+    def __print_current_codeblock(self) -> None:
+        print(self.__pstr_current_codeblock())
+
+    def __pstr_current_codeblock(self) -> str:
+
+        result = []
         current_ip = self.state.solver.eval(self.state.regs.ip)
 
 
         # Print the location (like main+0x10) if possible
         descr = self.state.project.loader.describe_addr(current_ip)
         if descr != 'not part of a loaded object':
-            print(descr)
+            result.append(descr)
 
 
         # Check if we are at the start of a known function to maybe pretty print the arguments
@@ -339,7 +218,7 @@ class ContextView(SimStatePlugin):
             pass
         else:
             if function.calling_convention:
-                print("\n".join(self.pstr_call_info(self.state, function)))
+                result.extend(self.pstr_call_info(self.state, function))
 
 
         # Get the current code block about to be executed as pretty disassembly
@@ -350,29 +229,35 @@ class ContextView(SimStatePlugin):
                 code = self.__pstr_codeblock(current_ip)
                 if code == None:
                     if self.disable_linear_disasm_fallback:
-                        code = self.red("No code at current ip. Please specify self_modifying code ")
+                        code = Color.redify("No code at current ip. Please specify self_modifying code ")
                     else:
                         code = self.__pstr_codelinear(current_ip) # do fallback to Capstone
             code = code.split("\n")
             
             # if it is longer than MAX_DISASS_LENGTH, only print the first lines
-            if len(code) >= MAX_DISASS_LENGHT:
-                print("\n".join(code[:MAX_DISASS_LENGHT]))
-                print("TRUNCATED BASIC BLOCK")
+            if len(code) >= self._disassembler.MAX_DISASS_LENGHT:
+                result.extend(code[:self._disassembler.MAX_DISASS_LENGHT])
+                result.append("TRUNCATED BASIC BLOCK")
             else:
-                print("\n".join(code))
+                result.extend(code)
         else:
             hook = self.state.project.hooked_by(current_ip)
-            print(hook)
+            result.append(hook)
 
+        return "\n".join(result)
 
-    def __pstr_codeblock(self, ip) -> str:
-        """Get the pretty version of a basic block with Pygemnts"""
+    def __pstr_codeblock(self, ip) -> Optional[str]:
+        """Get the pretty version of a basic block with Pygemnts
+        :param int ip:
+        :return:
+
+        """
         try:
-            block = self.state.project.factory.block(ip)
+            block = self.state.project.factory.block(ip, backup_state=self.state)
             code = self._disassembler.block_disass(block, self)
             return highlight(code, NasmLexer(), TerminalFormatter())
-        except SimEngineError:
+        except SimEngineError as e:
+            l.info("Got exception %s, returning None" % e)
             return None
 
     def __pstr_codelinear(self, ip) -> str:
@@ -385,13 +270,13 @@ class ContextView(SimStatePlugin):
     def fds(self):
         if [b"", b"", b""] == [self.state.posix.dumps(x) for x in self.state.posix.fd]:
             return
-        print(self.blue(headerFDs))
+        print(Color.blueify(headerFDs))
         for fd in self.state.posix.fd:
             print("fd " + str(fd), ":", repr(self.state.posix.dumps(fd)))
 
     def print_stack(self):
         stackdepth = 8
-        print(self.blue(headerStack))
+        print(Color.blueify(headerStack))
         # Not sure if that can happen, but if it does things will break
         if not self.state.regs.sp.concrete:
             print("STACK POINTER IS SYMBOLIC: " + str(self.state.regs.sp))
@@ -424,7 +309,7 @@ class ContextView(SimStatePlugin):
         """
         Visualise the register state
         """
-        print(self.blue(headerRegs))
+        print(Color.blueify(headerRegs))
         for reg in self.default_registers():
             register_number = self.state.arch.registers[reg][0]
             self.__pprint_register(reg, self.state.registers.load(register_number, inspect=False, disable_actions=True))
@@ -473,7 +358,7 @@ class ContextView(SimStatePlugin):
                 else:
                     return tmp
             else:
-                return "%s %s" % (self.red("WARN: Symbolic Pointer"), self.cc(ast))
+                return "%s %s" % (Color.redify("WARN: Symbolic Pointer"), self.cc(ast))
 
         if ast.concrete:
             value = self.state.solver.eval(ast)
@@ -485,7 +370,7 @@ class ContextView(SimStatePlugin):
         else:
             if ast.depth > MAX_AST_DEPTH:
                 # AST is probably too large to render
-                return self.green("<AST: Depth: %d Vars: %s Hash: %x>" % (ast.depth, ast.variables, ast.__hash__()))
+                return Color.greenify("<AST: Depth: %d Vars: %s Hash: %x>" % (ast.depth, ast.variables, ast.__hash__()))
             return self.cc(ast)
 
     def default_registers(self):
@@ -519,7 +404,7 @@ class ContextView(SimStatePlugin):
             self.state.watches
         except AttributeError:
             return
-        print(self.blue(headerWatch))
+        print(Color.blueify(headerWatch))
 
         for name, w in self.state.watches.eval:
                 print("%s:\t%s" % (name, w))

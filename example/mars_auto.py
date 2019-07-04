@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 
 import angr
-import claripy
 import logging
 import pickle
 import IPython
+import claripy
+import angrcli.plugins.ContextView
 
-import angrcli.plugins.context_view
 from angrcli.interaction.explore import ExploreInteractive
-from angrcli.plugins.context_view import ContextView as cv
 
 logging.getLogger("angr.engines.vex.engine").setLevel(logging.ERROR)
 logging.getLogger("angr.state_plugins.symbolic_memory").setLevel(logging.ERROR)

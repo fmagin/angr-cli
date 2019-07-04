@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 
 import angr
-import angrcli.plugins.context_view
 from angrcli.interaction.explore import ExploreInteractive
-import angrcli.plugins.watches 
+import angrcli.plugins.ContextView
 import claripy
 import logging
 logging.getLogger("angr.engines.vex.engine").setLevel(logging.ERROR)

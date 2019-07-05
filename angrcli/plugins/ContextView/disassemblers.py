@@ -19,6 +19,7 @@ import claripy
 class AngrCapstoneDisassembler(DisassemblerInterface):
 
 
+
     def block_disass(self, block, ctx_view):
         """
 
@@ -31,6 +32,11 @@ class AngrCapstoneDisassembler(DisassemblerInterface):
     def linear_disass(self, ip, ctx_view) -> [str]:
         """
 
+        When doing a fallback to Capstone we cannot disassemble by blocks so we
+        procede in a GEF style:
+        print NB_INSTR_PREV instruction before the current,
+        print the current with an arrow,
+        print (MAX_CAP_DIS_LENGHT - NB_INSTR_PREV -1) isntructions after current
         :param int ip:
         :param angrcli.plugins.context_view.ContextView ctx_view:
         :return:

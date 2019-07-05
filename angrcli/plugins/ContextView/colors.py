@@ -1,6 +1,3 @@
-
-
-
 class Color:
     """Used to colorify terminal output.
     Taken nearly verbatim from gef, https://github.com/hugsy/gef/blob/ecd6f8ff638d34043045df169ca6062b2fb28819/gef.py#L366-L421
@@ -26,6 +23,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
     """
+
     colors = {
         "normal"         : "\033[0m",
         "gray"           : "\033[1;38;5;240m",
@@ -43,6 +41,8 @@ SOFTWARE.
         "blink"          : "\033[5m",
         "blink_off"      : "\033[25m",
     }
+
+    disable_colors = False
 
     @staticmethod
     def redify(msg):       return Color.colorify(msg, "red")
@@ -70,7 +70,7 @@ SOFTWARE.
     @staticmethod
     def colorify(text, attrs):
         """Color text according to the given attributes."""
-        #if get_gef_setting("gef.disable_color") is True: return text
+        if Color.disable_colors is True: return text
 
         colors = Color.colors
         msg = [colors[attr] for attr in attrs.split() if attr in colors]
@@ -80,7 +80,3 @@ SOFTWARE.
         if colors["blink"] in msg :       msg.append(colors["blink_off"])
         msg.append(colors["normal"])
         return "".join(msg)
-
-
-class Theme():
-    """trans"""

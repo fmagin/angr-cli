@@ -5,7 +5,7 @@ from angr.sim_type import *
 
 
 import angr # type annotations; pylint: disable=unused-import
-from typing import Optional
+from typing import Optional, Tuple
 
 from angrcli.plugins.ContextView.disassemblers import AngrCapstoneDisassembler
 from .colors import Color
@@ -22,23 +22,8 @@ from pygments.formatters import TerminalFormatter
 
 MAX_AST_DEPTH = 5
 
-# When doing a fallback to Capstone we cannot disasseble by blocks so we
-# procede in a GEF style:
-# print NB_INSTR_PREV instruction before the current,
-# print the current with an arrow,
-# print (MAX_CAP_DIS_LENGHT - NB_INSTR_PREV -1) isntructions after current
 
 
-
-
-
-
-headerWatch     = "[ ──────────────────────────────────────────────────────────────────── Watches ── ]"
-headerBacktrace = "[ ────────────────────────────────────────────────────────────────── BackTrace ── ]"
-headerCode      = "[ ─────────────────────────────────────────────────────────────────────── Code ── ]"
-headerFDs       = "[ ──────────────────────────────────────────────────────────── FileDescriptors ── ]"
-headerStack     = "[ ────────────────────────────────────────────────────────────────────── Stack ── ]"
-headerRegs      = "[ ────────────────────────────────────────────────────────────────── Registers ── ]"
 class ContextView(SimStatePlugin):
     # Class variable to specify disassembler
     _disassembler = AngrCapstoneDisassembler()
@@ -57,6 +42,11 @@ class ContextView(SimStatePlugin):
         return ContextView(self.use_only_linear_disasm, self.disable_linear_disasm_fallback)
 
     def BVtoREG(self, bv):
+        """
+
+        :param claripy.ast.BV bv:
+        :return: str
+        """
         if type(bv) == str:
             return bv
         if "reg" in str(bv):
@@ -81,8 +71,102 @@ class ContextView(SimStatePlugin):
         s += " | RODATA"
         print(s)
 
+
+    def pprint(self):
+        """Pretty context view similiar to the context view of gdb plugins (peda and pwndbg)"""
+        headerWatch =       "[ ──────────────────────────────────────────────────────────────────── Watches ── ]"
+        headerBacktrace =   "[ ────────────────────────────────────────────────────────────────── BackTrace ── ]"
+        headerCode =        "[ ─────────────────────────────────────────────────────────────────────── Code ── ]"
+        headerFDs =         "[ ──────────────────────────────────────────────────────────── FileDescriptors ── ]"
+        headerStack =       "[ ────────────────────────────────────────────────────────────────────── Stack ── ]"
+        headerRegs =        "[ ────────────────────────────────────────────────────────────────── Registers ── ]"
+        self.state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
+        self.state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
+        self.print_legend()
+
+        print(Color.blueify(headerRegs))
+        self.state.context_view.print_registers_pane()
+
+        print(Color.blueify(headerCode))
+        self.state.context_view.print_code_pane()
+
+
+        if [b"", b"", b""] != [self.state.posix.dumps(x) for x in self.state.posix.fd]:
+            print(Color.blueify(headerFDs))
+            self.state.context_view.print_fds_pane()
+
+        print(Color.blueify(headerStack))
+        self.state.context_view.print_stack_pane()
+
+        print(Color.blueify(headerBacktrace))
+        self.state.context_view.print_backtrace_pane()
+
+
+        try:
+            self.state.watches
+        except AttributeError:
+            l.warning("No watches plugin loaded, unable to print watches")
+        else:
+            print(Color.blueify(headerWatch))
+            self.state.context_view.print_watches_pane()
+
+
+        self.state.options.remove(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
+        self.state.options.remove(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
+
+        # This is a hack to allow this method to be monkey patched as the __repr__ method of a state
+        return ""
+
+    def print_registers_pane(self):
+        """
+        Visualise the register state
+        """
+        for reg in self.default_registers():
+            register_number = self.state.arch.registers[reg][0]
+            print(self.__pstr_register(reg, self.state.registers.load(register_number, inspect=False, disable_actions=True)))
+
+    def print_code_pane(self):
+        if not self.use_only_linear_disasm:
+            try:
+                self.__print_previous_codeblock()
+                print("\t|\t" + self.cc(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
+            except:
+                pass
+        self.__print_current_codeblock()
+
+    def print_fds_pane(self):
+        for fd in self.state.posix.fd:
+            print("fd " + str(fd), ":", repr(self.state.posix.dumps(fd)))
+
+    def print_stack_pane(self):
+        stackdepth = 8
+        # Not sure if that can happen, but if it does things will break
+        if not self.state.regs.sp.concrete:
+            print("STACK POINTER IS SYMBOLIC: " + str(self.state.regs.sp))
+            return
+        for o in range(stackdepth):
+            self.__pprint_stack_element(o)
+
+    def print_backtrace_pane(self):
+        print("\n".join(self.__pstr_backtrace()))
+
+    def print_watches_pane(self):
+        try:
+            self.state.watches
+        except AttributeError:
+            l.warning("Tried accessing watches plugin, but the state doesn't have this registered")
+            return
+        for name, w in self.state.watches.eval:
+                print("%s:\t%s" % (name, w))
+        return None
+
+
     def __cc(self, bv):
-        """Takes a BV and returns tuple (colored string, is code bool)"""
+        """
+
+        :param claripy.ast.BV bv:
+        :return Tuple[str, bool]:
+        """
         if bv.symbolic:
             if bv.uninitialized:
                 return Color.grayify(self.BVtoREG(bv)), False
@@ -116,30 +200,24 @@ class ContextView(SimStatePlugin):
         return hex(value), False
 
     def cc(self, bv):
-        """Takes a BV and returns a colored string"""
+        """
+
+        :param claripy.ast.BV bv:
+        :return str:
+        """
         return self.__cc(bv)[0]
 
-    def pprint(self):
-        """Pretty context view similiar to the context view of gdb plugins (peda and pwndbg)"""
-        self.state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
-        self.state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
-        self.print_legend()
-        self.state.context_view.registers()
-        self.state.context_view.code()
-        self.state.context_view.fds()
-        self.state.context_view.print_stack()
-        self.state.context_view.print_backtrace()
-        self.state.context_view.print_watches()
-        self.state.options.remove(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
-        self.state.options.remove(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
-        return ""
+    def __pstr_backtrace(self) -> str:
+        """
+        Generates the backtrace of stackframes.
+        Example:
+            Frame 0: PLT.rand+0x401 in morph (0xb99) => 0xc0080176, sp = 0x7fffffffffefed8
+            Frame 1: __libc_start_main.after_init+0x0 in extern-address space (0x98) => PLT.rand+0x2de in morph (0xa76), sp = 0x7fffffffffeff18
+            Frame 2: PLT.rand+0x8 in morph (0x7a0) => __libc_start_main+0x0 in extern-address space (0x18), sp = 0x7fffffffffeff28
+            Frame 3: 0x0 => 0x0, sp = 0xffffffffffffffff
 
-    def print_backtrace(self):
-        print(Color.blueify(headerBacktrace))
-        print("\n".join(self.__pstr_backtrace()))
-
-
-    def __pstr_backtrace(self):
+        :return str:
+        """
         result = []
         for i, f in enumerate(self.state.callstack):
             if self.state.project.loader.find_object_containing(f.call_site_addr):
@@ -156,15 +234,6 @@ class ContextView(SimStatePlugin):
             result.append(frame)
         return result
 
-    def code(self):
-        print(Color.blueify(headerCode))
-        if not self.use_only_linear_disasm:
-            try:
-                self.__print_previous_codeblock()
-                print("\t|\t" + self.cc(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
-            except:
-                pass
-        self.__print_current_codeblock()
 
     def __print_previous_codeblock(self):
         prev_ip = self.state.history.bbl_addrs[-1]
@@ -255,7 +324,10 @@ class ContextView(SimStatePlugin):
         try:
             block = self.state.project.factory.block(ip, backup_state=self.state)
             code = self._disassembler.block_disass(block, self)
-            return highlight(code, NasmLexer(), TerminalFormatter())
+            if not Color.disable_colors:
+                return highlight(code, NasmLexer(), TerminalFormatter())
+            else:
+                return code
         except SimEngineError as e:
             l.info("Got exception %s, returning None" % e)
             return None
@@ -263,26 +335,12 @@ class ContextView(SimStatePlugin):
     def __pstr_codelinear(self, ip) -> str:
         """Get the pretty version of linear disasm with Pygemnts"""
         code = self._disassembler.linear_disass(ip, self)
-        return highlight(code, NasmLexer(), TerminalFormatter())
+        if not Color.disable_colors:
+            return highlight(code, NasmLexer(), TerminalFormatter())
+        else:
+            return code
 
 
-
-    def fds(self):
-        if [b"", b"", b""] == [self.state.posix.dumps(x) for x in self.state.posix.fd]:
-            return
-        print(Color.blueify(headerFDs))
-        for fd in self.state.posix.fd:
-            print("fd " + str(fd), ":", repr(self.state.posix.dumps(fd)))
-
-    def print_stack(self):
-        stackdepth = 8
-        print(Color.blueify(headerStack))
-        # Not sure if that can happen, but if it does things will break
-        if not self.state.regs.sp.concrete:
-            print("STACK POINTER IS SYMBOLIC: " + str(self.state.regs.sp))
-            return
-        for o in range(stackdepth):
-            self.__pprint_stack_element(o)
 
     def __pprint_stack_element(self, offset):
         """print(stack element in the form IDX:OFFSET|      ADDRESS ──> CONTENT"""
@@ -305,19 +363,12 @@ class ContextView(SimStatePlugin):
         l += " ──> %s" % self.pstr_ast(stackval)
         print(l)
 
-    def registers(self):
-        """
-        Visualise the register state
-        """
-        print(Color.blueify(headerRegs))
-        for reg in self.default_registers():
-            register_number = self.state.arch.registers[reg][0]
-            self.__pprint_register(reg, self.state.registers.load(register_number, inspect=False, disable_actions=True))
 
-    def __pprint_register(self, reg, value):
+    def __pstr_register(self, reg, value):
+
         repr = reg.upper() + ":\t"
         repr += self.pstr_ast(value)
-        print(repr)
+        return repr
 
     def describe_addr(self, addr):
         return self.__deref_addr(addr)
@@ -399,16 +450,6 @@ class ContextView(SimStatePlugin):
         return "%sIP: %s\tCond: %s\n\tVars: %s\n" % \
                (str(idx) + ":\t" if type(idx) is int else "", str_ip, str_jump_guard, vars)
 
-    def print_watches(self):
-        try:
-            self.state.watches
-        except AttributeError:
-            return
-        print(Color.blueify(headerWatch))
-
-        for name, w in self.state.watches.eval:
-                print("%s:\t%s" % (name, w))
-        return None
 
     def pstr_call_info(self, state, function):
         """

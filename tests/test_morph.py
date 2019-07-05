@@ -5,6 +5,9 @@ import claripy
 import angrcli.plugins.ContextView.context_view
 from angrcli.interaction.explore import ExploreInteractive
 
+from angrcli.plugins.ContextView.colors import Color
+
+Color.disable_colors = True
 morph_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "example", "morph")
 
 proj = angr.Project(morph_location, load_options={'auto_load_libs': False})

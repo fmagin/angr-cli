@@ -39,7 +39,7 @@ def test_morph():
     # Select correct Strlen result
     e.do_run("0")
     # Check that some code is being printed
-    assert "No code at current ip" not in e.state.context_view._ContextView__pstr_current_codeblock(), "Code not being printed correctly"
+    assert "No code at current ip" not in e.state.context_view._pstr_current_codeblock(), "Code not being printed correctly"
 
     for _ in range(0,23):
         e.do_run("0")

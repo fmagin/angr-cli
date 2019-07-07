@@ -79,7 +79,7 @@ class ExploreInteractive(Cmd, object):
             self.gui_cb.update_ip(self.simgr.one_active.addr)
         elif len(self.simgr.active) > 1:
             for idx, state in enumerate(self.simgr.active):
-                print(state.context_view.pstr_branch_info(idx))
+                print(state.context_view._pstr_branch_info(idx))
 
     def do_step(self, args):
         """
@@ -96,7 +96,7 @@ class ExploreInteractive(Cmd, object):
                 self.gui_cb.update_ip(self.simgr.one_active.addr)
         elif len(self.simgr.active) > 1:
             for idx, state in enumerate(self.simgr.active):
-                print(state.context_view.pstr_branch_info(idx))
+                print(state.context_view._pstr_branch_info(idx))
     
     def do_s(self, args):
         self.do_step(args)
@@ -119,7 +119,7 @@ class ExploreInteractive(Cmd, object):
 
         if len(self.simgr.active) > 0:
             for i, state in enumerate(self.simgr.active):
-                print(state.context_view.pstr_branch_info(i))
+                print(state.context_view._pstr_branch_info(i))
         else:
             print(Color.redify("STATE FINISHED EXECUTION"))
             if len(self.simgr.stashes["deferred"]) == 0:

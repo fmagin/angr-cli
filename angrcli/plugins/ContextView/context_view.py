@@ -41,7 +41,7 @@ class ContextView(SimStatePlugin):
     def copy(self, memo):
         return ContextView(self.use_only_linear_disasm, self.disable_linear_disasm_fallback)
 
-    def BVtoREG(self, bv):
+    def __BVtoREG(self, bv):
         """
 
         :param claripy.ast.BV bv:
@@ -126,16 +126,15 @@ class ContextView(SimStatePlugin):
         """
         for reg in self.default_registers():
             register_number = self.state.arch.registers[reg][0]
-            print(self.__pstr_register(reg, self.state.registers.load(register_number, inspect=False, disable_actions=True)))
+            print(self._pstr_register(reg, self.state.registers.load(register_number, inspect=False, disable_actions=True)))
 
     def print_code_pane(self):
         if not self.use_only_linear_disasm:
-            try:
-                self.__print_previous_codeblock()
-                print("\t|\t" + self.cc(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
-            except:
-                pass
-        self.__print_current_codeblock()
+            previos_block: str = self._pstr_previous_codeblock()
+            if previos_block:
+                print(previos_block)
+                print("\t|\t" + self._cc(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
+        print(self._pstr_current_codeblock())
 
     def print_fds_pane(self):
         for fd in self.state.posix.fd:
@@ -148,10 +147,10 @@ class ContextView(SimStatePlugin):
             print("STACK POINTER IS SYMBOLIC: " + str(self.state.regs.sp))
             return
         for o in range(stackdepth):
-            self.__pprint_stack_element(o)
+            print(self._pstr_stack_element(o))
 
     def print_backtrace_pane(self):
-        print("\n".join(self.__pstr_backtrace()))
+        print("\n".join(self._pstr_backtrace()))
 
     def print_watches_pane(self):
         try:
@@ -172,8 +171,8 @@ class ContextView(SimStatePlugin):
         """
         if bv.symbolic:
             if bv.uninitialized:
-                return Color.grayify(self.BVtoREG(bv)), False
-            return Color.greenify(self.BVtoREG(bv)), False
+                return Color.grayify(self.__BVtoREG(bv)), False
+            return Color.greenify(self.__BVtoREG(bv)), False
         # its concrete
         value = self.state.solver.eval(bv, cast_to=int)
         
@@ -202,7 +201,7 @@ class ContextView(SimStatePlugin):
 
         return hex(value), False
 
-    def cc(self, bv):
+    def _cc(self, bv):
         """
 
         :param claripy.ast.BV bv:
@@ -210,7 +209,7 @@ class ContextView(SimStatePlugin):
         """
         return self.__cc(bv)[0]
 
-    def __pstr_backtrace(self) -> str:
+    def _pstr_backtrace(self) -> str:
         """
         Generates the backtrace of stackframes.
         Example:
@@ -237,41 +236,41 @@ class ContextView(SimStatePlugin):
             result.append(frame)
         return result
 
-
-    def __print_previous_codeblock(self):
-        prev_ip = self.state.history.bbl_addrs[-1]
+    def _pstr_previous_codeblock(self) -> str:
+        result = []
+        try:
+            prev_ip = self.state.history.bbl_addrs[-1]
+        except IndexError:
+            return ""
 
         # Print the location (like main+0x10) if possible
         descr = self.state.project.loader.describe_addr(prev_ip)
         if descr != 'not part of a loaded object':
-            print(descr)
+            result.append(descr)
 
         if not self.state.project.is_hooked(prev_ip):
-            code = self.__pstr_codeblock(prev_ip)
+            code = self._pstr_codeblock(prev_ip)
             if code == None:
                 if self.disable_linear_disasm_fallback:
                     code = Color.redify("No code at current ip. Please specify self_modifying code ")
                 else:
-                    raise Exception() # skip print of previous
+                    raise Exception()  # skip print of previous
             code = code.split("\n")
-            
+
             # if it is longer than MAX_DISASS_LENGTH, only print the first lines
             if len(code) >= self._disassembler.MAX_DISASS_LENGHT:
-                print("TRUNCATED BASIC BLOCK")
-                print("\n".join(code[-self._disassembler.MAX_DISASS_LENGHT:]))
+                result.append("TRUNCATED BASIC BLOCK")
+                result.extend(code[-self._disassembler.MAX_DISASS_LENGHT:])
             else:
-                print("\n".join(code))
-            return
+                result.extend(code)
+
         else:
             hook = self.state.project.hooked_by(prev_ip)
-            print(hook)
+            result.append(str(hook))
 
+        return "\n".join(result)
 
-
-    def __print_current_codeblock(self) -> None:
-        print(self.__pstr_current_codeblock())
-
-    def __pstr_current_codeblock(self) -> str:
+    def _pstr_current_codeblock(self) -> str:
 
         result = []
         current_ip = self.state.solver.eval(self.state.regs.ip)
@@ -290,20 +289,20 @@ class ContextView(SimStatePlugin):
             pass
         else:
             if function.calling_convention:
-                result.extend(self.pstr_call_info(self.state, function))
+                result.extend(self._pstr_call_info(self.state, function))
 
 
         # Get the current code block about to be executed as pretty disassembly
         if not self.state.project.is_hooked(current_ip):
             if self.use_only_linear_disasm:
-                code = self.__pstr_codelinear(current_ip)
+                code = self._pstr_codelinear(current_ip)
             else:
-                code = self.__pstr_codeblock(current_ip)
+                code = self._pstr_codeblock(current_ip)
                 if code == None:
                     if self.disable_linear_disasm_fallback:
                         code = Color.redify("No code at current ip. Please specify self_modifying code ")
                     else:
-                        code = self.__pstr_codelinear(current_ip) # do fallback to Capstone
+                        code = self._pstr_codelinear(current_ip) # do fallback to Capstone
             code = code.split("\n")
             
             # if it is longer than MAX_DISASS_LENGTH, only print the first lines
@@ -318,7 +317,7 @@ class ContextView(SimStatePlugin):
 
         return "\n".join(result)
 
-    def __pstr_codeblock(self, ip) -> Optional[str]:
+    def _pstr_codeblock(self, ip) -> Optional[str]:
         """Get the pretty version of a basic block with Pygemnts
         :param int ip:
         :return:
@@ -335,7 +334,7 @@ class ContextView(SimStatePlugin):
             l.info("Got exception %s, returning None" % e)
             return None
 
-    def __pstr_codelinear(self, ip) -> str:
+    def _pstr_codelinear(self, ip) -> str:
         """Get the pretty version of linear disasm with Pygemnts"""
         code = self._disassembler.linear_disass(ip, self)
         if not Color.disable_colors:
@@ -345,7 +344,7 @@ class ContextView(SimStatePlugin):
 
 
 
-    def __pprint_stack_element(self, offset):
+    def _pstr_stack_element(self, offset) -> str:
         """print(stack element in the form IDX:OFFSET|      ADDRESS ──> CONTENT"""
         l = "%s:" % ("{0:#02d}".format(offset))
         l += "%s| " % ("{0:#04x}".format(offset * self.state.arch.bytes))
@@ -362,15 +361,15 @@ class ContextView(SimStatePlugin):
             l += "  "
         l += " "
 
-        l += "%s " % self.cc(stackaddr)
-        l += " ──> %s" % self.pstr_ast(stackval)
-        print(l)
+        l += "%s " % self._cc(stackaddr)
+        l += " ──> %s" % self._pstr_ast(stackval)
+        return l
 
 
-    def __pstr_register(self, reg, value):
+    def _pstr_register(self, reg, value):
 
         repr = reg.upper() + ":\t"
-        repr += self.pstr_ast(value)
+        repr += self._pstr_ast(value)
         return repr
 
     def describe_addr(self, addr):
@@ -386,10 +385,10 @@ class ContextView(SimStatePlugin):
             if deref.concrete or not deref.uninitialized:
                 value = self.state.solver.eval(deref)
                 if not value == addr and not value == 0 and depth < MAX_AST_DEPTH:
-                    return " ──> %s" % self.pstr_ast(deref, depth=depth+1)
+                    return " ──> %s" % self._pstr_ast(deref, depth=depth + 1)
         return ""
 
-    def pstr_ast(self, ast, ty=None, depth=0):
+    def _pstr_ast(self, ast, ty=None, depth=0):
         """Return a pretty string for an AST including a description of the derefed value if it makes sense (i.e. if
         the ast is concrete and the derefed value is not uninitialized
         More complex rendering is possible if type information is supplied
@@ -404,7 +403,7 @@ class ContextView(SimStatePlugin):
                 except ValueError:
                     deref = self.state.memory.load(ast, 1, inspect=False, disable_actions=True)
                     if deref.op == 'Extract':
-                        return "%s ──> %s" % (cc_ast, self.cc(deref.args[2]))
+                        return "%s ──> %s" % (cc_ast, self._cc(deref.args[2]))
                     elif deref.uninitialized:
                         return "%s ──> UNINITIALIZED" % (cc_ast)
                     else:
@@ -412,7 +411,7 @@ class ContextView(SimStatePlugin):
                 else:
                     return tmp
             else:
-                return "%s %s" % (Color.redify("WARN: Symbolic Pointer"), self.cc(ast))
+                return "%s %s" % (Color.redify("WARN: Symbolic Pointer"), self._cc(ast))
 
         if ast.concrete:
             value = self.state.solver.eval(ast)
@@ -425,7 +424,7 @@ class ContextView(SimStatePlugin):
             if ast.depth > MAX_AST_DEPTH:
                 # AST is probably too large to render
                 return Color.greenify("<AST: Depth: %d Vars: %s Hash: %x>" % (ast.depth, ast.variables, ast.__hash__()))
-            return self.cc(ast)
+            return self._cc(ast)
 
     def default_registers(self):
         custom = {
@@ -443,27 +442,27 @@ class ContextView(SimStatePlugin):
                    + [self.state.arch.register_names[self.state.arch.sp_offset]] \
                    + [self.state.arch.register_names[self.state.arch.bp_offset]]
 
-    def pstr_branch_info(self, idx=None):
+    def _pstr_branch_info(self, idx=None):
         """Return the information about the state concerning the last branch as a pretty string"""
-        str_ip = self.pstr_ast(self.state.regs.ip)
+        str_ip = self._pstr_ast(self.state.regs.ip)
         simplified_jump_guard = self.state.solver.simplify(self.state.history.jump_guard)
-        str_jump_guard = self.pstr_ast(simplified_jump_guard)
+        str_jump_guard = self._pstr_ast(simplified_jump_guard)
         vars = self.state.history.jump_guard.variables
 
         return "%sIP: %s\tCond: %s\n\tVars: %s\n" % \
                (str(idx) + ":\t" if type(idx) is int else "", str_ip, str_jump_guard, vars)
 
 
-    def pstr_call_info(self, state, function):
+    def _pstr_call_info(self, state, function):
         """
 
         :param angr.SimState state:
         :param angr.knowledge_plugins.functions.Function function:
         :return:
         """
-        return [ self.pstr_call_argument(*arg) for arg in function.calling_convention.get_arg_info(state)]
+        return [self._pstr_call_argument(*arg) for arg in function.calling_convention.get_arg_info(state)]
 
-    def pstr_call_argument(self, ty, name, location, value):
+    def _pstr_call_argument(self, ty, name, location, value):
         """
         The input should ideally be the unpacked tuple from one of the list entries of calling_convention.get_arg_info(state)
         :param angr.sim_type.SimType ty:
@@ -472,7 +471,7 @@ class ContextView(SimStatePlugin):
         :param claripy.ast.BV value:
         :return:
         """
-        return "%s %s@%s: %s" %( ty, name, location, self.pstr_ast(value, ty=ty))
+        return "%s %s@%s: %s" %( ty, name, location, self._pstr_ast(value, ty=ty))
 
 
 class Stack():

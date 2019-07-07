@@ -48,7 +48,7 @@ def test_branching():
 
 
     # Check that branch info is as expected. Bit hacky because the generated name of the variable might change during testing e.g. to argv1_51_128 instead of argv1_0_128
-    nose.tools.assert_equal(e.state.context_view.pstr_branch_info(),
+    nose.tools.assert_equal(e.state.context_view._pstr_branch_info(),
                             "IP: 0x40119a <main+0x51 in sym_exec.elf (0x119a)>\tCond: <Bool %s[127:120] == 80>\n\tVars: frozenset({'%s'})\n" % (argv1.args[0], argv1.args[0]),
                             "Branch info not as expected")
 

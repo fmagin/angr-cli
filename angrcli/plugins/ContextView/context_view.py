@@ -133,7 +133,7 @@ class ContextView(SimStatePlugin):
             previos_block: str = self._pstr_previous_codeblock()
             if previos_block:
                 print(previos_block)
-                print("\t|\t" + self._cc(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
+                print("\t|\t" + self.__color_code_ast(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
         print(self._pstr_current_codeblock())
 
     def print_fds_pane(self):
@@ -163,7 +163,7 @@ class ContextView(SimStatePlugin):
         return None
 
 
-    def __cc(self, bv):
+    def _color_code_ast(self, bv):
         """
 
         :param claripy.ast.BV bv:
@@ -176,7 +176,7 @@ class ContextView(SimStatePlugin):
         # its concrete
         value = self.state.solver.eval(bv, cast_to=int)
         
-        if self.state.solver.eval(self.state.regs.sp) <= value < self.state.arch.initial_sp:
+        if self.state.solver.eval(self.state.regs.sp) <= value <= self.state.arch.initial_sp:
             return Color.yellowify(hex(value)), False
         if self.state.heap.heap_base <= value <= self.state.heap.heap_location:
             return Color.blueify(hex(value)), False
@@ -188,12 +188,12 @@ class ContextView(SimStatePlugin):
                 if perm:
                     if perm & BasePage.PROT_EXEC:
                         descr = " <%s>" % self.state.project.loader.describe_addr(value)
-                        if descr == 'not part of a loaded object':
+                        if descr == ' <not part of a loaded object>':
                             return Color.redify(hex(value)), True
                         return Color.redify(hex(value) + descr), True
                     else:
                         descr = " <%s>" % self.state.project.loader.describe_addr(value)
-                        if descr == 'not part of a loaded object':
+                        if descr == ' <not part of a loaded object>':
                             return Color.pinkify(hex(value)), False
                         return Color.pinkify(hex(value) + descr), False
         except:
@@ -201,13 +201,13 @@ class ContextView(SimStatePlugin):
 
         return hex(value), False
 
-    def _cc(self, bv):
+    def __color_code_ast(self, bv):
         """
 
         :param claripy.ast.BV bv:
         :return str:
         """
-        return self.__cc(bv)[0]
+        return self._color_code_ast(bv)[0]
 
     def _pstr_backtrace(self) -> str:
         """
@@ -361,7 +361,7 @@ class ContextView(SimStatePlugin):
             l += "  "
         l += " "
 
-        l += "%s " % self._cc(stackaddr)
+        l += "%s " % self.__color_code_ast(stackaddr)
         l += " ──> %s" % self._pstr_ast(stackval)
         return l
 
@@ -372,30 +372,37 @@ class ContextView(SimStatePlugin):
         repr += self._pstr_ast(value)
         return repr
 
-    def describe_addr(self, addr):
-        return self.__deref_addr(addr)
 
-    def __deref_addr(self, addr, depth=0):
+    def __deref_addr(self, addr) -> claripy.ast.bv.BV:
+        """
+
+        :param int addr:
+        :param int depth:
+        :return Optional[claripy.ast.BV]:
+        """
         if addr in self.state.memory:
             deref = self.state.memory.load(addr, 1, inspect=False, disable_actions=True)
             if deref.op == 'Extract':
                 deref = deref.args[2]
             else:
                 deref = self.state.mem[addr].uintptr_t.resolved
-            if deref.concrete or not deref.uninitialized:
-                value = self.state.solver.eval(deref)
-                if not value == addr and not value == 0 and depth < MAX_AST_DEPTH:
-                    return " ──> %s" % self._pstr_ast(deref, depth=depth + 1)
-        return ""
+            return deref
+        return None
 
-    def _pstr_ast(self, ast, ty=None, depth=0):
+    def _pstr_ast(self, ast, ty=None, depth=0) -> str:
         """Return a pretty string for an AST including a description of the derefed value if it makes sense (i.e. if
         the ast is concrete and the derefed value is not uninitialized
         More complex rendering is possible if type information is supplied
+        :param claripy.ast.BV ast: The AST to be pretty printed
+        :param Optional[angr.sim_type.SimType]: Optional Type information
         """
+
+        if depth > MAX_AST_DEPTH:
+            return str(ast)
         if isinstance(ty, SimTypePointer):
+            ty: angr.sim_type.SimTypePointer
             if ast.concrete:
-                cc_ast, ast_is_code_ptr = self.__cc(ast)
+                cc_ast, ast_is_code_ptr = self._color_code_ast(ast)
                 if ast_is_code_ptr:
                     return cc_ast
                 try:
@@ -403,7 +410,7 @@ class ContextView(SimStatePlugin):
                 except ValueError:
                     deref = self.state.memory.load(ast, 1, inspect=False, disable_actions=True)
                     if deref.op == 'Extract':
-                        return "%s ──> %s" % (cc_ast, self._cc(deref.args[2]))
+                        return "%s ──> %s" % (cc_ast, self.__color_code_ast(deref.args[2]))
                     elif deref.uninitialized:
                         return "%s ──> UNINITIALIZED" % (cc_ast)
                     else:
@@ -411,20 +418,22 @@ class ContextView(SimStatePlugin):
                 else:
                     return tmp
             else:
-                return "%s %s" % (Color.redify("WARN: Symbolic Pointer"), self._cc(ast))
+                return "%s %s" % (Color.redify("WARN: Symbolic Pointer"), self.__color_code_ast(ast))
 
         if ast.concrete:
-            value = self.state.solver.eval(ast)
-            cc_ast, ast_is_code_ptr = self.__cc(ast)
-            if not ast_is_code_ptr and ast.op =='BVV' and self.__deref_addr(value, depth+1):
-                return cc_ast + self.__deref_addr(value, depth+1)
+            value: int = self.state.solver.eval(ast)
+            cc_ast, ast_is_code_ptr = self._color_code_ast(ast)
+            deref = self.__deref_addr(value)
+            if (deref != None) and not ast_is_code_ptr and ast.op == "BVV":
+                pretty_deref = self._pstr_ast(deref, depth=depth+1)
+                return "%s ──> %s" % (cc_ast, pretty_deref)
             else:
                 return cc_ast
         else:
             if ast.depth > MAX_AST_DEPTH:
                 # AST is probably too large to render
                 return Color.greenify("<AST: Depth: %d Vars: %s Hash: %x>" % (ast.depth, ast.variables, ast.__hash__()))
-            return self._cc(ast)
+            return self.__color_code_ast(ast)
 
     def default_registers(self):
         custom = {
@@ -436,7 +445,7 @@ class ContextView(SimStatePlugin):
         if self.state.arch.name in custom:
             return custom[self.state.arch.name]
         else:
-            l.warn("No custom register list implemented, using fallback")
+            l.warning("No custom register list implemented, using fallback")
             return self.state.arch.default_symbolic_registers \
                    + [self.state.arch.register_names[self.state.arch.ip_offset]] \
                    + [self.state.arch.register_names[self.state.arch.sp_offset]] \

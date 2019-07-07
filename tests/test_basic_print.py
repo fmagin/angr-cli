@@ -9,8 +9,5 @@ def test_basic_print():
     state = proj.factory.entry_state()
     state.context_view.pprint()
 
-def test_all():
-    test_basic_print()
-
 if __name__ == "__main__":
-    test_all()
+    test_basic_print()

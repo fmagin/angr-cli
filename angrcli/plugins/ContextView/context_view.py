@@ -80,6 +80,8 @@ class ContextView(SimStatePlugin):
         headerFDs =         "[ ──────────────────────────────────────────────────────────── FileDescriptors ── ]"
         headerStack =       "[ ────────────────────────────────────────────────────────────────────── Stack ── ]"
         headerRegs =        "[ ────────────────────────────────────────────────────────────────── Registers ── ]"
+
+        # Disable the warnings about accessing uninitialized memory/registers so they don't break printing
         self.state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
         self.state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
         self.print_legend()
@@ -111,6 +113,7 @@ class ContextView(SimStatePlugin):
             self.state.context_view.print_watches_pane()
 
 
+        # Reenable the warnings about accessing uninitialized memory/registers so they don't break printing
         self.state.options.remove(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
         self.state.options.remove(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
 
@@ -311,7 +314,7 @@ class ContextView(SimStatePlugin):
                 result.extend(code)
         else:
             hook = self.state.project.hooked_by(current_ip)
-            result.append(hook)
+            result.append(str(hook))
 
         return "\n".join(result)
 

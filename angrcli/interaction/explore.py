@@ -1,6 +1,6 @@
 
 from cmd import Cmd
-
+from angrcli.plugins.ContextView.colors import Color
 
 class GUICallbackBaseClass():
     def update_ip(self, ip):
@@ -15,14 +15,12 @@ class BinjaCallback(GUICallbackBaseClass):
         self.bv.file.navigate(self.bv.file.view, ip)
 
 
-def red(text):
-    return "\x1b[0;31m" + text + "\x1b[0m"
 
 class ExploreInteractive(Cmd, object):
 
-    intro = red("[!] Dropping into angr shell\n") 
-    intro += red("Available Commands: print, (p)ick, (r)un, (s)tep, stepi, (q)uit")
-    prompt = red(">>> ")
+    intro =  Color.redify("[!] Dropping into angr shell\n")
+    intro += Color.redify("Available Commands: print, (p)ick, (r)un, (s)tep, stepi, (q)uit")
+    prompt = Color.redify(">>> ")
 
     def __init__(self, proj, state, gui_callback_object=GUICallbackBaseClass()):
         super(ExploreInteractive, self).__init__()
@@ -45,7 +43,7 @@ class ExploreInteractive(Cmd, object):
 
     def do_quit(self, args):
         """Quits the cli."""
-        print(red("Exiting cmd-loop"))
+        print(Color.redify("Exiting cmd-loop"))
         return True
     
     def do_q(self, args):
@@ -64,7 +62,7 @@ class ExploreInteractive(Cmd, object):
         pick = int(arg)
         active = len(self.simgr.active)
         if pick >= active:
-            print(red("Only {} active state(s), indexed from 0".format(active)))
+            print(Color.redify("Only {} active state(s), indexed from 0".format(active)))
         else:
             self.simgr.active[pick].context_view.pprint()
             self.gui_cb.update_ip(self.simgr.active[pick].addr)
@@ -91,8 +89,11 @@ class ExploreInteractive(Cmd, object):
         if len(self.simgr.active) == 1:
             self.simgr.step()
             self._clearScreen()
-            self.simgr.one_active.context_view.pprint()
-            self.gui_cb.update_ip(self.simgr.one_active.addr)
+            if len(self.simgr.active) == 0:
+                print(Color.redify("State terminated"))
+            else:
+                self.simgr.one_active.context_view.pprint()
+                self.gui_cb.update_ip(self.simgr.one_active.addr)
         elif len(self.simgr.active) > 1:
             for idx, state in enumerate(self.simgr.active):
                 print(state.context_view.pstr_branch_info(idx))
@@ -120,11 +121,11 @@ class ExploreInteractive(Cmd, object):
             for i, state in enumerate(self.simgr.active):
                 print(state.context_view.pstr_branch_info(i))
         else:
-            print(red("STATE FINISHED EXECUTION"))
+            print(Color.redify("STATE FINISHED EXECUTION"))
             if len(self.simgr.stashes["deferred"]) == 0:
-                print(red("No states left to explore"))
+                print(Color.redify("No states left to explore"))
             else: # DFS-style like 
-                print(red("Other side of last branch has been added to {}".format(self.simgr)))
+                print(Color.redify("Other side of last branch has been added to {}".format(self.simgr)))
                 self.simgr.stashes["active"].append(self.simgr.stashes["deferred"].pop())
 
     def do_r(self, args):
@@ -140,9 +141,9 @@ class ExploreInteractive(Cmd, object):
             pick = int(arg)
             ip = self.simgr.active[pick].regs.ip
         except:
-            print("Invalid Choice: "+red("{}".format(arg))+", for {}".format(self.simgr))
+            print("Invalid Choice: "+ Color.redify("{}".format(arg))+", for {}".format(self.simgr))
             return False
-        print(red("Picking state with ip: " + (str(ip))))
+        print(Color.redify("Picking state with ip: " + (str(ip))))
         self.simgr.move(from_stash='active',
                    to_stash="deferred",
                    filter_func=lambda x: x.solver.eval(ip != x.regs.ip))

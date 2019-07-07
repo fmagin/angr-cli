@@ -14,10 +14,6 @@ def test_linear_disass_symbolic_code():
     state = proj.factory.blank_state(addr=0x1337)
     state.context_view.pprint()
 
-
-def test_all():
-    test_linear_disass_valid_code()
-    test_linear_disass_symbolic_code()
-
 if __name__ == "__main__":
-    test_all()
+    test_linear_disass_symbolic_code()
+    test_linear_disass_valid_code()

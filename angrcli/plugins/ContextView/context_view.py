@@ -6,7 +6,6 @@ from angr.sim_type import *
 
 import angr # type annotations; pylint: disable=unused-import
 import claripy
-import claripy.ast.BV
 from typing import Optional, Tuple
 
 from angrcli.plugins.ContextView.disassemblers import AngrCapstoneDisassembler

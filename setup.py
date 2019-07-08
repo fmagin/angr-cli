@@ -7,6 +7,6 @@ setup(
     include_package_data=True,
     license='MIT',
     long_description='none',
-    python_requires='>=3.6'
+    python_requires='>=3.6',
     url='https://github.com/fmagin/angr-cli'
 )

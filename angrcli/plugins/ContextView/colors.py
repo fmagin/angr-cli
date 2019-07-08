@@ -69,7 +69,11 @@ SOFTWARE.
 
     @staticmethod
     def colorify(text, attrs):
-        """Color text according to the given attributes."""
+        """Color text according to the given attributes.
+        :param str text:
+        :param
+        :return str:
+        """
         if Color.disable_colors is True: return text
 
         colors = Color.colors

@@ -77,12 +77,14 @@ class ExploreInteractive(Cmd, object):
             self._clearScreen()
             if len(self.simgr.active) == 0:
                 print(Color.redify("State terminated"))
+                self._handle_state_termination()
             else:
                 self.simgr.one_active.context_view.pprint(linear_code=True)
                 self.gui_cb.update_ip(self.simgr.one_active.addr)
         elif len(self.simgr.active) > 1:
             for idx, state in enumerate(self.simgr.active):
                 print(state.context_view._pstr_branch_info(idx))
+
 
     def do_step(self, args):
         """
@@ -94,6 +96,7 @@ class ExploreInteractive(Cmd, object):
             self._clearScreen()
             if len(self.simgr.active) == 0:
                 print(Color.redify("State terminated"))
+                self._handle_state_termination()
             else:
                 self.simgr.one_active.context_view.pprint()
                 self.gui_cb.update_ip(self.simgr.one_active.addr)
@@ -125,11 +128,7 @@ class ExploreInteractive(Cmd, object):
                 print(state.context_view._pstr_branch_info(i))
         else:
             print(Color.redify("STATE FINISHED EXECUTION"))
-            if len(self.simgr.stashes["deferred"]) == 0:
-                print(Color.redify("No states left to explore"))
-            else: # DFS-style like 
-                print(Color.redify("Other side of last branch has been added to {}".format(self.simgr)))
-                self.simgr.stashes["active"].append(self.simgr.stashes["deferred"].pop())
+            self._handle_state_termination()
 
     def do_r(self, args):
         self.do_run(args)
@@ -161,3 +160,15 @@ class ExploreInteractive(Cmd, object):
         self.do_quit(args)
         return True
 
+
+    def _handle_state_termination(self):
+        self.simgr.deadended[-1].context_view.pprint()
+        if len(self.simgr.stashes["deferred"]) == 0:
+            print(Color.redify("No states left to explore"))
+        else:  # DFS-style like
+            state = self.simgr.stashes["deferred"].pop()
+            print(Color.redify("Other side of last branch with jumpguard ")
+                + Color.greenify(state.solver.simplify(state.history.jump_guard))
+                + Color.redify(" has been added to {}".format(self.simgr))
+                  )
+            self.simgr.stashes["active"].append(state)

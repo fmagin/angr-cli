@@ -1,0 +1,5 @@
+recursive-exclude * __pycache__
+recursive-exclude tests *
+recursive-exclude example *
+include LICENSE README.md requirements.txt
+

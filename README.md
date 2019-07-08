@@ -64,6 +64,9 @@ e = ExploreInteractive(proj, state)
 e.cmdloop()
 ```
 
+#### Demo
+
+[![asciicast](https://asciinema.org/a/256289.svg)](https://asciinema.org/a/256289)
 
 ## Misc
 

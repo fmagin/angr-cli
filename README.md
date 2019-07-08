@@ -5,7 +5,24 @@ This Python package is a collection of modules to allow easier interactive use o
 All of the features are designed for the use of angr in an interactive environment like an IPython shell or a Jupyter environment (both CLI and Notebook), but some will still work in a simple Python shell or script.
 
 
+## Install
 
+### PyPi
+
+A stable version is available on PyPi.
+```sh
+pip install angrcli
+```
+
+### Dev
+
+In case you want a development install of this, run this in a folder of your choice (e.g. your `angr-dev` repo) after activating your angr virtual environment
+
+```sh
+git clone https://github.com/fmagin/angr-cli.git
+cd angr-cli
+pip install -e ./
+```
 
 ## Core Features
 
@@ -19,7 +36,7 @@ The Context View plugin allows rendering of a state in a view similiar to that p
 ```python
 import angr
 # This line registers the plugin and makes it available on each state
-import angrcli.plugins.context_view
+import angrcli.plugins.ContextView
 proj = angr.Project("/bin/ls", load_options={"auto_load_libs":False})
 state = proj.factory.entry_state()
 
@@ -39,7 +56,7 @@ This can either be used in a script, or inside an IPython shell. The latter allo
 #### Usage
 ```python
 import angr
-import angrcli.plugins.context_view
+import angrcli.plugins.ContextView
 from angrcli.interaction.explore import ExploreInteractive
 proj = angr.Project("/bin/ls", load_options={"auto_load_libs":False})
 state = proj.factory.entry_state()

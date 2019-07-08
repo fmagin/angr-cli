@@ -16,7 +16,6 @@ proj = angr.Project(location, load_options={'auto_load_libs': False})
 
 
 
-
 def test_proper_termination():
     state = proj.factory.entry_state()
     e = ExploreInteractive(proj, state)
@@ -67,8 +66,6 @@ def test_branching():
 
 
     nose.tools.assert_true(b'PASSWORD' in e.simgr.deadended[1].solver.eval(argv1, cast_to=bytes))
-
-
 
 if __name__ == "__main__":
     test_proper_termination()

@@ -75,8 +75,11 @@ class ExploreInteractive(Cmd, object):
         if len(self.simgr.active) == 1:
             self.simgr.step(num_inst=1)
             self._clearScreen()
-            self.simgr.one_active.context_view.pprint()
-            self.gui_cb.update_ip(self.simgr.one_active.addr)
+            if len(self.simgr.active) == 0:
+                print(Color.redify("State terminated"))
+            else:
+                self.simgr.one_active.context_view.pprint(linear_code=True)
+                self.gui_cb.update_ip(self.simgr.one_active.addr)
         elif len(self.simgr.active) > 1:
             for idx, state in enumerate(self.simgr.active):
                 print(state.context_view._pstr_branch_info(idx))

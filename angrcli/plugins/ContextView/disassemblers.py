@@ -70,7 +70,7 @@ class AngrCapstoneDisassembler(DisassemblerInterface):
             if isinstance(mem.args[0], claripy.ast.bv.BV) and not mem.args[0].symbolic:
                 mem = mem.args[0]
             else:
-                return ctx_view.red("Instructions are symbolic!")
+                return "Instructions are symbolic!"
 
         mem = ctx_view.state.solver.eval(mem, cast_to=bytes)
 

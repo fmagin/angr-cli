@@ -72,7 +72,7 @@ class ContextView(SimStatePlugin):
         print(s)
 
 
-    def pprint(self):
+    def pprint(self, linear_code=False):
         """Pretty context view similiar to the context view of gdb plugins (peda and pwndbg)"""
         headerWatch =       "[ ──────────────────────────────────────────────────────────────────── Watches ── ]"
         headerBacktrace =   "[ ────────────────────────────────────────────────────────────────── BackTrace ── ]"
@@ -90,7 +90,7 @@ class ContextView(SimStatePlugin):
         self.state.context_view.print_registers_pane()
 
         print(Color.blueify(headerCode))
-        self.state.context_view.print_code_pane()
+        self.state.context_view.print_code_pane(linear_code)
 
 
         if [b"", b"", b""] != [self.state.posix.dumps(x) for x in self.state.posix.fd]:
@@ -128,13 +128,8 @@ class ContextView(SimStatePlugin):
             register_number = self.state.arch.registers[reg][0]
             print(self._pstr_register(reg, self.state.registers.load(register_number, inspect=False, disable_actions=True)))
 
-    def print_code_pane(self):
-        if not self.use_only_linear_disasm:
-            previos_block: str = self._pstr_previous_codeblock()
-            if previos_block:
-                print(previos_block)
-                print("\t|\t" + self.__color_code_ast(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
-        print(self._pstr_current_codeblock())
+    def print_code_pane(self, linear_code=False):
+        print(self._pstr_code(linear_code))
 
     def print_fds_pane(self):
         for fd in self.state.posix.fd:
@@ -150,7 +145,7 @@ class ContextView(SimStatePlugin):
             print(self._pstr_stack_element(o))
 
     def print_backtrace_pane(self):
-        print("\n".join(self._pstr_backtrace()))
+        print(self._pstr_backtrace())
 
     def print_watches_pane(self):
         try:
@@ -234,7 +229,17 @@ class ContextView(SimStatePlugin):
             frame = "Frame %d: %s => %s, sp = %#x" % (i, call_site_addr, func_addr, f.stack_ptr)
 
             result.append(frame)
-        return result
+        return "\n".join(result)
+
+    def _pstr_code(self, linear_code=False):
+        result = []
+        if not self.use_only_linear_disasm and not linear_code:
+            previos_block: str = self._pstr_previous_codeblock()
+            if previos_block:
+                result.append(previos_block)
+                result.append("\t|\t" + self.__color_code_ast(self.state.solver.simplify(self.state.history.jump_guard)) + "\n\tv")
+        result.append(self._pstr_current_codeblock(linear_code))
+        return "\n".join(result)
 
     def _pstr_previous_codeblock(self) -> str:
         result = []
@@ -270,7 +275,7 @@ class ContextView(SimStatePlugin):
 
         return "\n".join(result)
 
-    def _pstr_current_codeblock(self) -> str:
+    def _pstr_current_codeblock(self, linear_code=False) -> str:
 
         result = []
         current_ip = self.state.solver.eval(self.state.regs.ip)
@@ -294,7 +299,7 @@ class ContextView(SimStatePlugin):
 
         # Get the current code block about to be executed as pretty disassembly
         if not self.state.project.is_hooked(current_ip):
-            if self.use_only_linear_disasm:
+            if self.use_only_linear_disasm or linear_code:
                 code = self._pstr_codelinear(current_ip)
             else:
                 code = self._pstr_codeblock(current_ip)

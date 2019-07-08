@@ -5,6 +5,8 @@ from angr.sim_type import *
 
 
 import angr # type annotations; pylint: disable=unused-import
+import claripy
+import claripy.ast.BV
 from typing import Optional, Tuple
 
 from angrcli.plugins.ContextView.disassemblers import AngrCapstoneDisassembler
@@ -26,7 +28,7 @@ MAX_AST_DEPTH = 5
 
 class ContextView(SimStatePlugin):
     # Class variable to specify disassembler
-    _disassembler = AngrCapstoneDisassembler()
+    _disassembler = AngrCapstoneDisassembler() # type: angrcli.plugins.ContextView.disassemblers.DisassemblerInterface
     def __init__(self, use_only_linear_disasm=False, disable_linear_disasm_fallback=True):
         self.state = None  # type: angr.SimState
         super(ContextView, self).__init__()
@@ -40,24 +42,6 @@ class ContextView(SimStatePlugin):
     @SimStatePlugin.memo
     def copy(self, memo):
         return ContextView(self.use_only_linear_disasm, self.disable_linear_disasm_fallback)
-
-    def __BVtoREG(self, bv):
-        """
-
-        :param claripy.ast.BV bv:
-        :return: str
-        """
-        if type(bv) == str:
-            return bv
-        if "reg" in str(bv):
-            replname = str(bv)
-            for v in self.state.solver.describe_variables(bv):
-                if "reg" in v:
-                    ridx = v[1]
-                    regname = self.state.arch.register_names[ridx]
-                    replname = replname.replace("reg_" + hex(ridx)[2:], regname)
-            return replname
-        return str(bv)
 
     def print_legend(self):
         s = "LEGEND: "
@@ -73,6 +57,11 @@ class ContextView(SimStatePlugin):
 
 
     def pprint(self, linear_code=False):
+        """
+        Pretty print an entire state
+        :param bool linear_code:
+        :return str: Should always be the empty string to allow monkey patching as __repr__ method
+        """
         """Pretty context view similiar to the context view of gdb plugins (peda and pwndbg)"""
         headerWatch =       "[ ──────────────────────────────────────────────────────────────────── Watches ── ]"
         headerBacktrace =   "[ ────────────────────────────────────────────────────────────────── BackTrace ── ]"
@@ -121,9 +110,6 @@ class ContextView(SimStatePlugin):
         return ""
 
     def print_registers_pane(self):
-        """
-        Visualise the register state
-        """
         for reg in self.default_registers():
             register_number = self.state.arch.registers[reg][0]
             print(self._pstr_register(reg, self.state.registers.load(register_number, inspect=False, disable_actions=True)))
@@ -158,9 +144,34 @@ class ContextView(SimStatePlugin):
         return None
 
 
-    def _color_code_ast(self, bv):
+    def __BVtoREG(self, bv):
         """
 
+        :param claripy.ast.BV bv:
+        :return: str
+        """
+        if type(bv) == str:
+            return bv
+        if "reg" in str(bv):
+            replname = str(bv)
+            for v in self.state.solver.describe_variables(bv):
+                if "reg" in v:
+                    ridx = v[1]
+                    regname = self.state.arch.register_names[ridx]
+                    replname = replname.replace("reg_" + hex(ridx)[2:], regname)
+            return replname
+        return str(bv)
+
+    def _color_code_ast(self, bv):
+        """
+        Converts a bitvector into a string representation that is colored depending on it's type/value and returns
+
+        Colors:
+        Uninitialized: Gray
+        Symbolic: Green
+        Stack: Yellow
+        Heap: Blue
+        Code: Red
         :param claripy.ast.BV bv:
         :return Tuple[str, bool]:
         """
@@ -169,7 +180,7 @@ class ContextView(SimStatePlugin):
                 return Color.grayify(self.__BVtoREG(bv)), False
             return Color.greenify(self.__BVtoREG(bv)), False
         # its concrete
-        value = self.state.solver.eval(bv, cast_to=int)
+        value: int = self.state.solver.eval(bv, cast_to=int)
         
         if self.state.solver.eval(self.state.regs.sp) <= value <= self.state.arch.initial_sp:
             return Color.yellowify(hex(value)), False
@@ -202,6 +213,7 @@ class ContextView(SimStatePlugin):
         :param claripy.ast.BV bv:
         :return str:
         """
+
         return self._color_code_ast(bv)[0]
 
     def _pstr_backtrace(self) -> str:
@@ -232,6 +244,11 @@ class ContextView(SimStatePlugin):
         return "\n".join(result)
 
     def _pstr_code(self, linear_code=False):
+        """
+
+        :param bool linear_code: Whether the code will be printed as linear or block based disassembly
+        :return str: the string of the code pane with colored assembly
+        """
         result = []
         if not self.use_only_linear_disasm and not linear_code:
             previos_block: str = self._pstr_previous_codeblock()
@@ -241,7 +258,20 @@ class ContextView(SimStatePlugin):
         result.append(self._pstr_current_codeblock(linear_code))
         return "\n".join(result)
 
-    def _pstr_previous_codeblock(self) -> str:
+    def _pstr_previous_codeblock(self):
+        """
+        Example:
+            main+0x0 in sym_exec.elf (0x1149)
+            0x401149:	push	rbp
+            0x40114a:	mov	rbp, rsp
+            0x40114d:	sub	rsp, 0x20
+            0x401151:	mov	dword ptr [rbp - 0x14], edi
+            0x401154:	mov	qword ptr [rbp - 0x20], rsi
+            0x401158:	cmp	dword ptr [rbp - 0x14], 1
+            0x40115c:	jg	0x401183
+
+        :return str: The string form of the previous code block including annotations like location
+        """
         result = []
         try:
             prev_ip = self.state.history.bbl_addrs[-1]
@@ -275,7 +305,20 @@ class ContextView(SimStatePlugin):
 
         return "\n".join(result)
 
-    def _pstr_current_codeblock(self, linear_code=False) -> str:
+    def _pstr_current_codeblock(self, linear_code=False):
+        """
+        Example:
+        main+0x15 in sym_exec.elf (0x115e)
+        0x40115e:	mov	rax, qword ptr [rbp - 0x20]
+        0x401162:	mov	rax, qword ptr [rax]
+        0x401165:	mov	rsi, rax
+        0x401168:	lea	rdi, [rip + 0xe95]
+        0x40116f:	mov	eax, 0
+        0x401174:	call	0x401040
+
+        :param bool linear_code: Whether the code will be printed as linear or block based disassembly
+        :return str: The colored string form of the current code block including annotations like location, either in block or linear form
+        """
 
         result = []
         current_ip = self.state.solver.eval(self.state.regs.ip)
@@ -322,10 +365,18 @@ class ContextView(SimStatePlugin):
 
         return "\n".join(result)
 
-    def _pstr_codeblock(self, ip) -> Optional[str]:
-        """Get the pretty version of a basic block with Pygemnts
-        :param int ip:
-        :return:
+    def _pstr_codeblock(self, ip):
+        """
+        Example:
+        0x40115e:	mov	rax, qword ptr [rbp - 0x20]
+        0x401162:	mov	rax, qword ptr [rax]
+        0x401165:	mov	rsi, rax
+        0x401168:	lea	rdi, [rip + 0xe95]
+        0x40116f:	mov	eax, 0
+        0x401174:	call	0x401040
+
+        :param int ip: Address of the start of the block (typically the instruction pointer, thus ip)
+        :return Optional[str]: If a code block could be generated returns the colored assembly, else None
 
         """
         try:
@@ -339,8 +390,24 @@ class ContextView(SimStatePlugin):
             l.info("Got exception %s, returning None" % e)
             return None
 
-    def _pstr_codelinear(self, ip) -> str:
-        """Get the pretty version of linear disasm with Pygemnts"""
+    def _pstr_codelinear(self, ip):
+        """
+        Example:
+        0x401154:	mov	qword ptr [rbp - 0x20], rsi
+        0x401158:	cmp	dword ptr [rbp - 0x14], 1
+        0x40115c:	jg	0x401183
+        0x40115e:	mov	rax, qword ptr [rbp - 0x20]
+    --> 0x401162:	mov	rax, qword ptr [rax]
+        0x401165:	mov	rsi, rax
+        0x401168:	lea	rdi, [rip + 0xe95]
+        0x40116f:	mov	eax, 0
+        0x401174:	call	0x401040
+        0x401179:	mov	eax, 0xffffffff
+        0x40117e:	jmp	0x401222
+
+        :param int ip: Address around the instructon that should be disassembled
+        :return str: The colored string of the instructions around the ip, with the ip instruction prefixed with "-->"
+        """
         code = self._disassembler.linear_disass(ip, self)
         if not Color.disable_colors:
             return highlight(code, NasmLexer(), TerminalFormatter())
@@ -349,8 +416,16 @@ class ContextView(SimStatePlugin):
 
 
 
-    def _pstr_stack_element(self, offset) -> str:
-        """print(stack element in the form IDX:OFFSET|      ADDRESS ──> CONTENT"""
+    def _pstr_stack_element(self, offset):
+        """
+        Format:
+        "IDX:OFFSET|      ADDRESS ──> CONTENT":
+        Example
+        00:0x00| sp 0x7fffffffffeff10  ──> 0x7fffffffffeff60 ──> 0x7fffffffffeff98 ──> 0x6d662f656d6f682f
+        :param int offset:
+        :return str: One line for the stack element being prettified
+        """
+        """print(stack element in the form """
         l = "%s:" % ("{0:#02d}".format(offset))
         l += "%s| " % ("{0:#04x}".format(offset * self.state.arch.bytes))
         try:
@@ -372,7 +447,12 @@ class ContextView(SimStatePlugin):
 
 
     def _pstr_register(self, reg, value):
+        """
 
+        :param str reg: Name of the register
+        :param claripy.ast.BV value: Value of the register
+        :return str:
+        """
         repr = reg.upper() + ":\t"
         repr += self._pstr_ast(value)
         return repr
@@ -394,12 +474,13 @@ class ContextView(SimStatePlugin):
             return deref
         return None
 
-    def _pstr_ast(self, ast, ty=None, depth=0) -> str:
+    def _pstr_ast(self, ast, ty=None, depth=0):
         """Return a pretty string for an AST including a description of the derefed value if it makes sense (i.e. if
         the ast is concrete and the derefed value is not uninitialized
         More complex rendering is possible if type information is supplied
         :param claripy.ast.BV ast: The AST to be pretty printed
-        :param Optional[angr.sim_type.SimType]: Optional Type information
+        :param angr.sim_type.SimType ty: Optional Type information
+        :return str: Pretty colored string
         """
 
         if depth > MAX_AST_DEPTH:
@@ -441,6 +522,11 @@ class ContextView(SimStatePlugin):
             return self.__color_code_ast(ast)
 
     def default_registers(self):
+        """
+        The list of the registers that are printed by default in the register pane
+        Either some custom set for common architectures or a default set generated from the arch specification
+        :return List[str]:
+        """
         custom = {
             'X86': ['eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp', 'esp', 'eip'],
             'AMD64': ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'rbp', 'rsp', 'rip', 'r8', 'r9', 'r10', 'r11', 'r12',
@@ -457,7 +543,11 @@ class ContextView(SimStatePlugin):
                    + [self.state.arch.register_names[self.state.arch.bp_offset]]
 
     def _pstr_branch_info(self, idx=None):
-        """Return the information about the state concerning the last branch as a pretty string"""
+        """
+        Return the information about the state concerning the last branch as a pretty string
+        :param Optional[int] idx:
+        :return str:
+        """
         str_ip = self._pstr_ast(self.state.regs.ip)
         simplified_jump_guard = self.state.solver.simplify(self.state.history.jump_guard)
         str_jump_guard = self._pstr_ast(simplified_jump_guard)
@@ -471,8 +561,8 @@ class ContextView(SimStatePlugin):
         """
 
         :param angr.SimState state:
-        :param angr.knowledge_plugins.functions.Function function:
-        :return:
+        :param angr.knowledge_plugins.functions.function.Function function:
+        :return List[str]:
         """
         return [self._pstr_call_argument(*arg) for arg in function.calling_convention.get_arg_info(state)]
 
@@ -483,7 +573,7 @@ class ContextView(SimStatePlugin):
         :param str name:
         :param angr.calling_conventions.SimFunctionArgument location:
         :param claripy.ast.BV value:
-        :return:
+        :return str:
         """
         return "%s %s@%s: %s" %( ty, name, location, self._pstr_ast(value, ty=ty))
 

@@ -6,6 +6,7 @@ from angr.sim_type import *
 
 import angr # type annotations; pylint: disable=unused-import
 import claripy
+from angr.calling_conventions import SimCC
 from typing import Optional, Tuple
 
 from angrcli.plugins.ContextView.disassemblers import AngrCapstoneDisassembler
@@ -329,14 +330,18 @@ class ContextView(SimStatePlugin):
             result.append(descr)
 
 
-        # Check if we are at the start of a known function to maybe pretty print the arguments
-        try:
+        # Check if we are hooked or at the start of a known function to maybe pretty print the arguments
+        cc = None
+        if current_ip in self.state.project.kb.functions:
             function = self.state.project.kb.functions[current_ip]
-        except KeyError:
-            pass
-        else:
-            if function.calling_convention:
-                result.extend(self._pstr_call_info(self.state, function))
+            cc = function.calling_convention # type: Optional[SimCC]
+
+        if self.state.project.is_hooked(current_ip):
+            hook = self.state.project.hooked_by(current_ip) # type: Optional[SimProcedure]
+            cc = hook.cc if hook else None # type: Optional[SimCC]
+
+        if cc and cc.func_ty:
+                result.extend(self._pstr_call_info(self.state, cc))
 
 
         # Get the current code block about to be executed as pretty disassembly
@@ -484,12 +489,17 @@ class ContextView(SimStatePlugin):
 
         if depth > MAX_AST_DEPTH:
             return str(ast)
+
+
+        # Type handling
         if isinstance(ty, SimTypePointer):
             ty: angr.sim_type.SimTypePointer
             if ast.concrete:
                 cc_ast, ast_is_code_ptr = self._color_code_ast(ast)
                 if ast_is_code_ptr:
                     return cc_ast
+                if isinstance(ty.pts_to, SimTypePointer):
+                    return
                 try:
                     tmp = "%s ──> %s" % (cc_ast, repr(self.state.mem[ast].string.concrete))
                 except ValueError:
@@ -504,6 +514,8 @@ class ContextView(SimStatePlugin):
                     return tmp
             else:
                 return "%s %s" % (Color.redify("WARN: Symbolic Pointer"), self.__color_code_ast(ast))
+        if isinstance(ty, SimTypeChar) and ast.concrete:
+            return "'%s'" % chr(self.state.solver.eval(ast))
 
         if ast.concrete:
             value: int = self.state.solver.eval(ast)
@@ -556,14 +568,14 @@ class ContextView(SimStatePlugin):
                (str(idx) + ":\t" if type(idx) is int else "", str_ip, str_jump_guard, vars)
 
 
-    def _pstr_call_info(self, state, function):
+    def _pstr_call_info(self, state, cc):
         """
 
         :param angr.SimState state:
-        :param angr.knowledge_plugins.functions.function.Function function:
+        :param SimCC cc:
         :return List[str]:
         """
-        return [self._pstr_call_argument(*arg) for arg in function.calling_convention.get_arg_info(state)]
+        return [self._pstr_call_argument(*arg) for arg in cc.get_arg_info(state)]
 
     def _pstr_call_argument(self, ty, name, location, value):
         """

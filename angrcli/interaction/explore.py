@@ -168,7 +168,7 @@ class ExploreInteractive(Cmd, object):
         else:  # DFS-style like
             state = self.simgr.stashes["deferred"].pop()
             print(Color.redify("Other side of last branch with jumpguard ")
-                + Color.greenify(state.solver.simplify(state.history.jump_guard))
+                + Color.greenify(str(state.solver.simplify(state.history.jump_guard)))
                 + Color.redify(" has been added to {}".format(self.simgr))
                   )
             self.simgr.stashes["active"].append(state)

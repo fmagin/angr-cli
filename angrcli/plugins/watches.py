@@ -29,7 +29,13 @@ class Watches(SimStatePlugin):
 
     @property
     def eval(self):
-        return [(name, w(self.state)) for name, w in self._watches.items()]
+        results = []
+        for name, watch in self._watches.items():
+            try:
+                results.append((name, watch(self.state)))
+            except Exception as e:
+                results.append((name, e))
+        return results
 
 
 

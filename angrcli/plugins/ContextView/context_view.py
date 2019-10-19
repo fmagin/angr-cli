@@ -4,14 +4,14 @@ from angr.sim_type import *
 import angr  # type annotations; pylint: disable=unused-import
 import claripy
 from angr.calling_conventions import SimCC
-from typing import Optional, Tuple, Any
+from typing import Optional, Tuple, Any, cast, List, Union
 
 from angrcli.plugins.ContextView.disassemblers import (
     AngrCapstoneDisassembler,
     DisassemblerInterface,
 )
 from pyvex import RegisterName
-from .colors import Color
+from .colors import Color, ColoredString
 
 from angr.storage.paged_memory import BasePage
 from angr.state_plugins import SimStatePlugin, SimSolver
@@ -24,6 +24,7 @@ from pygments.formatters import TerminalFormatter  # type: ignore
 
 MAX_AST_DEPTH = 5
 
+PrettyString = Union[str, ColoredString]
 
 class ContextView(SimStatePlugin):
     # Class variable to specify disassembler
@@ -80,20 +81,20 @@ class ContextView(SimStatePlugin):
         self.print_legend()
 
         print(Color.blueify(headerRegs))
-        self.state.context_view.print_registers_pane()
+        self.print_registers_pane()
 
         print(Color.blueify(headerCode))
-        self.state.context_view.print_code_pane(linear_code)
+        self.print_code_pane(linear_code)
 
         if [b"", b"", b""] != [self.state.posix.dumps(x) for x in self.state.posix.fd]:
             print(Color.blueify(headerFDs))
-            self.state.context_view.print_fds_pane()
+            self.print_fds_pane()
 
         print(Color.blueify(headerStack))
-        self.state.context_view.print_stack_pane()
+        self.print_stack_pane()
 
         print(Color.blueify(headerBacktrace))
-        self.state.context_view.print_backtrace_pane()
+        self.print_backtrace_pane()
 
         try:
             self.state.watches
@@ -101,7 +102,7 @@ class ContextView(SimStatePlugin):
             l.warning("No watches plugin loaded, unable to print watches")
         else:
             print(Color.blueify(headerWatch))
-            self.state.context_view.print_watches_pane()
+            self.print_watches_pane()
 
         # Reenable the warnings about accessing uninitialized memory/registers so they don't break printing
         self.state.options.remove(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
@@ -171,7 +172,7 @@ class ContextView(SimStatePlugin):
             return replname
         return str(bv)
 
-    def _color_code_ast(self, bv):
+    def _color_code_ast(self, bv: claripy.ast.bv.BV) -> Tuple[ColoredString, bool]:
         """
         Converts a bitvector into a string representation that is colored depending on it's type/value and returns
 
@@ -197,7 +198,7 @@ class ContextView(SimStatePlugin):
             <= self.state.arch.initial_sp
         ):
             return Color.yellowify(hex(value)), False
-        if self.state.heap.heap_base <= value <= self.state.heap.heap_location:
+        if self.state.heap.heap_base <= value <= self.state.heap.heap_base + self.state.heap.heap_size:
             return Color.blueify(hex(value)), False
 
         try:
@@ -218,9 +219,9 @@ class ContextView(SimStatePlugin):
         except:
             pass
 
-        return hex(value), False
+        return cast(ColoredString, hex(value)), False
 
-    def __color_code_ast(self, bv):
+    def __color_code_ast(self, bv: claripy.ast.bv.BV) -> ColoredString:
         """
 
         :param claripy.ast.BV bv:
@@ -229,7 +230,7 @@ class ContextView(SimStatePlugin):
 
         return self._color_code_ast(bv)[0]
 
-    def _pstr_backtrace(self) -> str:
+    def _pstr_backtrace(self) -> PrettyString:
         """
         Generates the backtrace of stackframes.
         Example:
@@ -263,7 +264,7 @@ class ContextView(SimStatePlugin):
             result.append(frame)
         return "\n".join(result)
 
-    def _pstr_code(self, linear_code=False):
+    def _pstr_code(self, linear_code: bool =False) -> PrettyString:
         """
 
         :param bool linear_code: Whether the code will be printed as linear or block based disassembly
@@ -284,7 +285,7 @@ class ContextView(SimStatePlugin):
         result.append(self._pstr_current_codeblock(linear_code))
         return "\n".join(result)
 
-    def _pstr_previous_codeblock(self):
+    def _pstr_previous_codeblock(self) -> PrettyString:
         """
         Example:
             main+0x0 in sym_exec.elf (0x1149)
@@ -298,11 +299,11 @@ class ContextView(SimStatePlugin):
 
         :return str: The string form of the previous code block including annotations like location
         """
-        result = []
+        result = [] # type: List[PrettyString]
         try:
             prev_ip = self.state.history.bbl_addrs[-1]
         except IndexError:
-            return ""
+            return cast(ColoredString, "")
 
         # Print the location (like main+0x10) if possible
         descr = self.state.project.loader.describe_addr(prev_ip)
@@ -400,7 +401,7 @@ class ContextView(SimStatePlugin):
 
         return "\n".join(result)
 
-    def _pstr_codeblock(self, ip):
+    def _pstr_codeblock(self, ip: int) -> Optional[List[PrettyString]]:
         """
         Example:
         0x40115e:	mov	rax, qword ptr [rbp - 0x20]
@@ -482,7 +483,7 @@ class ContextView(SimStatePlugin):
         l += " ──> %s" % self._pstr_ast(stackval)
         return l
 
-    def _pstr_register(self, reg: RegisterName, value: claripy.ast.BV) -> str:
+    def _pstr_register(self, reg: RegisterName, value: claripy.ast.bv.BV) -> str:
         """
 
         :param str reg: Name of the register
@@ -493,7 +494,7 @@ class ContextView(SimStatePlugin):
         repr += self._pstr_ast(value)
         return repr
 
-    def __deref_addr(self, addr) -> Optional[claripy.ast.BV]:
+    def __deref_addr(self, addr) -> Optional[claripy.ast.bv.BV]:
         """
 
         :param int addr:

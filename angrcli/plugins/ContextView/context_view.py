@@ -3,8 +3,9 @@ from angr.sim_type import *
 
 import angr  # type annotations; pylint: disable=unused-import
 import claripy
-from angr.calling_conventions import SimCC
-from typing import Optional, Tuple, Any, cast, List, Union
+from claripy.ast.bv import BV
+from angr.calling_conventions import SimCC, SimFunctionArgument
+from typing import Optional, Tuple, Any, cast, List, Union, Dict
 
 from angrcli.plugins.ContextView.disassemblers import (
     AngrCapstoneDisassembler,
@@ -154,7 +155,7 @@ class ContextView(SimStatePlugin):
             print("%s:\t%s" % (name, w))
         return None
 
-    def __BVtoREG(self, bv: claripy.ast.bv.BV) -> str:
+    def __BVtoREG(self, bv: BV) -> str:
         """
 
         :param claripy.ast.BV bv:
@@ -319,14 +320,14 @@ class ContextView(SimStatePlugin):
                     )
                 else:
                     raise Exception()  # skip print of previous
-            code = code.split("\n")
+            code_lines = code.split("\n") # type: List[PrettyString]
 
             # if it is longer than MAX_DISASS_LENGTH, only print the first lines
-            if len(code) >= self._disassembler.MAX_DISASS_LENGHT:
+            if len(code_lines) >= self._disassembler.MAX_DISASS_LENGHT:
                 result.append("TRUNCATED BASIC BLOCK")
-                result.extend(code[-self._disassembler.MAX_DISASS_LENGHT :])
+                result.extend(code_lines[-self._disassembler.MAX_DISASS_LENGHT :])
             else:
-                result.extend(code)
+                result.extend(code_lines)
 
         else:
             hook = self.state.project.hooked_by(prev_ip)
@@ -334,7 +335,7 @@ class ContextView(SimStatePlugin):
 
         return "\n".join(result)
 
-    def _pstr_current_codeblock(self, linear_code=False):
+    def _pstr_current_codeblock(self, linear_code: bool = False) -> PrettyString:
         """
         Example:
         main+0x15 in sym_exec.elf (0x115e)
@@ -426,7 +427,7 @@ class ContextView(SimStatePlugin):
             l.info("Got exception %s, returning None" % e)
             return None
 
-    def _pstr_codelinear(self, ip):
+    def _pstr_codelinear(self, ip: int) -> PrettyString:
         """
         Example:
         0x401154:	mov	qword ptr [rbp - 0x20], rsi
@@ -450,7 +451,7 @@ class ContextView(SimStatePlugin):
         else:
             return code
 
-    def _pstr_stack_element(self, offset):
+    def _pstr_stack_element(self, offset: int) -> PrettyString:
         """
         Format:
         "IDX:OFFSET|      ADDRESS ──> CONTENT":
@@ -465,7 +466,7 @@ class ContextView(SimStatePlugin):
         try:
             stackaddr, stackval = self.stack[offset]
         except IndexError:
-            return
+            return ""
 
         if self.state.solver.eval(stackaddr) == self.state.solver.eval(
             self.state.regs.sp, cast_to=int
@@ -494,7 +495,7 @@ class ContextView(SimStatePlugin):
         repr += self._pstr_ast(value)
         return repr
 
-    def __deref_addr(self, addr) -> Optional[claripy.ast.bv.BV]:
+    def __deref_addr(self, addr: int) -> Optional[claripy.ast.bv.BV]:
         """
 
         :param int addr:
@@ -511,7 +512,7 @@ class ContextView(SimStatePlugin):
         return None
 
     def _pstr_ast(
-        self, ast: claripy.ast.bv.BV, ty: Optional[SimType] = None, depth=0
+        self, ast: claripy.ast.bv.BV, ty: Optional[SimType] = None, depth: int=0
     ) -> str:
         """Return a pretty string for an AST including a description of the derefed value if it makes sense (i.e. if
         the ast is concrete and the derefed value is not uninitialized
@@ -577,15 +578,15 @@ class ContextView(SimStatePlugin):
                 )
             return self.__color_code_ast(ast)
 
-    def default_registers(self):
+    def default_registers(self) -> List[RegisterName]:
         """
         The list of the registers that are printed by default in the register pane
         Either some custom set for common architectures or a default set generated from the arch specification
         :return List[str]:
         """
         custom = {
-            "X86": ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp", "eip"],
-            "AMD64": [
+            "X86": cast(List[RegisterName], ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp", "eip"]),
+            "AMD64": cast(List[RegisterName], [
                 "rax",
                 "rbx",
                 "rcx",
@@ -603,8 +604,8 @@ class ContextView(SimStatePlugin):
                 "r13",
                 "r14",
                 "r15",
-            ],
-        }
+            ]),
+        } # type: Dict[str, List[RegisterName]]
         if self.state.arch.name in custom:
             return custom[self.state.arch.name]
         else:
@@ -616,7 +617,7 @@ class ContextView(SimStatePlugin):
                 + [self.state.arch.register_names[self.state.arch.bp_offset]]
             )
 
-    def _pstr_branch_info(self, idx=None):
+    def _pstr_branch_info(self, idx: Optional[int] = None) -> PrettyString:
         """
         Return the information about the state concerning the last branch as a pretty string
         :param Optional[int] idx:
@@ -627,7 +628,7 @@ class ContextView(SimStatePlugin):
             self.state.history.jump_guard
         )
         str_jump_guard = self._pstr_ast(simplified_jump_guard)
-        vars = self.state.history.jump_guard.variables
+        vars = cast(BV, self.state.history.jump_guard).variables
 
         return "%sIP: %s\tCond: %s\n\tVars: %s\n" % (
             str(idx) + ":\t" if type(idx) is int else "",
@@ -636,7 +637,7 @@ class ContextView(SimStatePlugin):
             vars,
         )
 
-    def _pstr_call_info(self, state, cc):
+    def _pstr_call_info(self, state: SimState, cc: SimCC) -> List[PrettyString]:
         """
 
         :param angr.SimState state:
@@ -645,7 +646,7 @@ class ContextView(SimStatePlugin):
         """
         return [self._pstr_call_argument(*arg) for arg in cc.get_arg_info(state)]
 
-    def _pstr_call_argument(self, ty, name, location, value):
+    def _pstr_call_argument(self, ty: SimType, name: str, location: SimFunctionArgument, value: claripy.ast.bv.BV) -> PrettyString:
         """
         The input should ideally be the unpacked tuple from one of the list entries of calling_convention.get_arg_info(state)
         :param angr.sim_type.SimType ty:
@@ -658,10 +659,10 @@ class ContextView(SimStatePlugin):
 
 
 class Stack:
-    def __init__(self, state):
+    def __init__(self, state: SimState):
         self.state = state  # type: angr.SimState
 
-    def __getitem__(self, offset):
+    def __getitem__(self, offset: int) -> Tuple[int, claripy.ast.bv.BV]:
         """Returns a tuple of a stack element as (addr, content)"""
         addr = self.state.regs.sp + offset * self.state.arch.bytes
         if self.state.solver.eval(addr >= self.state.arch.initial_sp):

@@ -1,5 +1,8 @@
 from typing import List
 
+import angr
+from angrcli.plugins.ContextView import ContextView
+
 
 class DisassemblerInterface:
     """
@@ -10,10 +13,10 @@ class DisassemblerInterface:
     MAX_CAP_DIS_LENGHT = 10
     NB_INSTR_PREV = 4
 
-    def block_disass(self, block, ctx_view) -> List[str]:
+    def block_disass(self, block: angr.block.Block, ctx_view: ContextView) -> List[str]:
         raise NotImplemented
 
-    def linear_disass(self, ip, ctx_view) -> List[str]:
+    def linear_disass(self, ip: int, ctx_view: ContextView) -> List[str]:
         raise NotImplemented
 
 
@@ -22,7 +25,7 @@ import claripy
 
 
 class AngrCapstoneDisassembler(DisassemblerInterface):
-    def block_disass(self, block, ctx_view):
+    def block_disass(self, block: angr.block.Block, ctx_view: ContextView) -> List[str]:
         """
 
         :param angr.block.Block block:
@@ -31,7 +34,7 @@ class AngrCapstoneDisassembler(DisassemblerInterface):
         """
         return str(block.capstone)
 
-    def linear_disass(self, ip, ctx_view) -> List[str]:
+    def linear_disass(self, ip: int, ctx_view: ContextView) -> List[str]:
         """
 
         When doing a fallback to Capstone we cannot disassemble by blocks so we
@@ -102,7 +105,7 @@ class GhidraDisassembler(DisassemblerInterface):
     ghidra_bridge is a giant hack, don't be confused that this uses variables that shouldn't exist and probably messes with the namespace in weird ways
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         import ghidra_bridge
 
         namespace = {}
@@ -114,7 +117,7 @@ class GhidraDisassembler(DisassemblerInterface):
         codeUnit = self._diss.disassemble(currentAddress.getNewAddress(addr))
         return "0x%x: %s\n" % (addr, self._cuf.getRepresentationString(codeUnit))
 
-    def block_disass(self, block, ctx_view):
+    def block_disass(self, block: angr.block.Block, ctx_view: ContextView) -> List[str]:
         """
 
         :param angr.block.Block block:
@@ -126,7 +129,7 @@ class GhidraDisassembler(DisassemblerInterface):
             result += "0x%x: %s\n" % (a, self._cuf.getRepresentationString(codeUnit))
         return result
 
-    def linear_disass(self, ip, ctx_view) -> List[str]:
+    def linear_disass(self, ip: int, ctx_view: ContextView) -> List[str]:
         """
 
         :param int ip:

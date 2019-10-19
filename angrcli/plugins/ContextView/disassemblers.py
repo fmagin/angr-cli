@@ -1,7 +1,6 @@
 from typing import List
 
 import angr
-from angrcli.plugins.ContextView import ContextView
 
 
 class DisassemblerInterface:
@@ -13,10 +12,10 @@ class DisassemblerInterface:
     MAX_CAP_DIS_LENGHT = 10
     NB_INSTR_PREV = 4
 
-    def block_disass(self, block: angr.block.Block, ctx_view: ContextView) -> List[str]:
+    def block_disass(self, block: angr.block.Block, ctx_view: 'ContextView') -> List[str]:
         raise NotImplemented
 
-    def linear_disass(self, ip: int, ctx_view: ContextView) -> List[str]:
+    def linear_disass(self, ip: int, ctx_view: 'ContextView') -> List[str]:
         raise NotImplemented
 
 
@@ -25,7 +24,7 @@ import claripy
 
 
 class AngrCapstoneDisassembler(DisassemblerInterface):
-    def block_disass(self, block: angr.block.Block, ctx_view: ContextView) -> List[str]:
+    def block_disass(self, block: angr.block.Block, ctx_view: 'ContextView') -> List[str]:
         """
 
         :param angr.block.Block block:
@@ -34,7 +33,7 @@ class AngrCapstoneDisassembler(DisassemblerInterface):
         """
         return str(block.capstone)
 
-    def linear_disass(self, ip: int, ctx_view: ContextView) -> List[str]:
+    def linear_disass(self, ip: int, ctx_view: 'ContextView') -> List[str]:
         """
 
         When doing a fallback to Capstone we cannot disassemble by blocks so we
@@ -117,7 +116,7 @@ class GhidraDisassembler(DisassemblerInterface):
         codeUnit = self._diss.disassemble(currentAddress.getNewAddress(addr))
         return "0x%x: %s\n" % (addr, self._cuf.getRepresentationString(codeUnit))
 
-    def block_disass(self, block: angr.block.Block, ctx_view: ContextView) -> List[str]:
+    def block_disass(self, block: angr.block.Block, ctx_view: 'ContextView') -> List[str]:
         """
 
         :param angr.block.Block block:
@@ -129,7 +128,7 @@ class GhidraDisassembler(DisassemblerInterface):
             result += "0x%x: %s\n" % (a, self._cuf.getRepresentationString(codeUnit))
         return result
 
-    def linear_disass(self, ip: int, ctx_view: ContextView) -> List[str]:
+    def linear_disass(self, ip: int, ctx_view: 'ContextView') -> List[str]:
         """
 
         :param int ip:
@@ -137,3 +136,6 @@ class GhidraDisassembler(DisassemblerInterface):
         :return:
         """
         raise NotImplemented  # TODO
+
+
+from .context_view import ContextView

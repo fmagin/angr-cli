@@ -20,8 +20,8 @@ from angr.state_plugins import SimStatePlugin, SimSolver
 l = logging.getLogger("angr.state_plugins.context_view")
 
 from pygments import highlight  # type: ignore
-from pygments.lexers import NasmLexer  # type: ignore
-from pygments.formatters import TerminalFormatter  # type: ignore
+from pygments.lexers.asm import NasmLexer  # type: ignore
+from pygments.formatters.terminal import TerminalFormatter  # type: ignore
 
 MAX_AST_DEPTH = 5
 

@@ -1,6 +1,6 @@
 import nose
 import angr
-import angrcli.plugins.ContextView.context_view
+import angrcli.plugins.ContextView
 from angrcli.plugins.ContextView.colors import Color
 proj = angr.Project("/bin/ls", load_options={'auto_load_libs': False})
 

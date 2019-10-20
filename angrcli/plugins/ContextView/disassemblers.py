@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, TYPE_CHECKING
 
 import angr
 
@@ -137,5 +137,5 @@ class GhidraDisassembler(DisassemblerInterface):
         """
         raise NotImplemented  # TODO
 
-
-from .context_view import ContextView
+if TYPE_CHECKING:
+    from angrcli.plugins.ContextView.context_view import ContextView

@@ -33,7 +33,7 @@ class ExploreInteractive(cmd2.Cmd):
         state: SimState,
         gui_callback_object: GUICallbackBaseClass = GUICallbackBaseClass(),
     ):
-        super(ExploreInteractive, self).__init__()
+        super(ExploreInteractive, self).__init__(allow_cli_args=False)
         self.proj = proj
         self.simgr = proj.factory.simulation_manager(state)  # type: SimulationManager
         if "deferred" not in self.simgr.stashes:

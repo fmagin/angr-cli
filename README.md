@@ -24,6 +24,16 @@ cd angr-cli
 pip install -e ./
 ```
 
+## General Usage
+
+To import and setup all features:
+
+```python
+import angrcli.full
+```
+
+This will take care of importing and registering the plugins.
+
 ## Core Features
 
 ### State View Plugin

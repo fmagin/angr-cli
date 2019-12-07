@@ -1,5 +1,6 @@
-from cmd import Cmd
 from typing import Any
+
+import cmd2
 
 from angr import Project, SimState, SimulationManager
 from angrcli.plugins.ContextView.colors import Color, ColoredString
@@ -18,7 +19,7 @@ class BinjaCallback(GUICallbackBaseClass):
         self.bv.file.navigate(self.bv.file.view, ip)
 
 
-class ExploreInteractive(Cmd, object):
+class ExploreInteractive(cmd2.Cmd):
 
     intro: ColoredString = Color.redify("[!] Dropping into angr shell\n")
     intro += Color.redify(

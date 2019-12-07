@@ -5,6 +5,8 @@ import claripy
 import angrcli.plugins.ContextView.context_view
 from angrcli.interaction.explore import ExploreInteractive
 
+import angrcli.plugins.watches
+
 from angrcli.plugins.ContextView.colors import Color
 
 Color.disable_colors = True

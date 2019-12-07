@@ -9,5 +9,6 @@ setup(
     long_description='none',
     python_requires='>=3.6',
     url='https://github.com/fmagin/angr-cli',
-    install_requires=['angr', 'Pygments']
+    install_requires=['angr', 'Pygments'],
+    package_data={'angrcli': ["py.typed"]},
 )

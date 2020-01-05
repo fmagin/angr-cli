@@ -18,9 +18,11 @@ pip install angrcli
 
 In case you want a development install of this, run this in a folder of your choice (e.g. your `angr-dev` repo) after activating your angr virtual environment
 
+This currently requires my pyvex fork for type annotations until they are merged into master.
 ```sh
 git clone https://github.com/fmagin/angr-cli.git
 cd angr-cli
+pip install https://github.com/fmagin/pyvex/archive/typing.zip
 pip install -e ./
 ```
 
@@ -70,8 +72,13 @@ import angrcli.plugins.ContextView
 from angrcli.interaction.explore import ExploreInteractive
 proj = angr.Project("/bin/ls", load_options={"auto_load_libs":False})
 state = proj.factory.entry_state()
+# For quick but less flexible access (state isn't modified)
+state.explore()
+
+# state.explore() basically just does the following on each call
 e = ExploreInteractive(proj, state)
 e.cmdloop()
+
 ```
 
 #### Demo

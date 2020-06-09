@@ -11,7 +11,7 @@ from angrcli.plugins.ContextView.disassemblers import (
     AngrCapstoneDisassembler,
     DisassemblerInterface,
 )
-from pyvex import RegisterName
+from archinfo import RegisterName
 from .colors import Color, ColoredString
 
 from angr.storage.paged_memory import BasePage

@@ -18,11 +18,9 @@ pip install angrcli
 
 In case you want a development install of this, run this in a folder of your choice (e.g. your `angr-dev` repo) after activating your angr virtual environment
 
-This currently requires my pyvex fork for type annotations until they are merged into master.
 ```sh
 git clone https://github.com/fmagin/angr-cli.git
 cd angr-cli
-pip install https://github.com/fmagin/pyvex/archive/typing.zip
 pip install -e ./
 ```
 

@@ -98,7 +98,7 @@ class AngrCapstoneDisassembler(DisassemblerInterface):
         return code
 
 
-class GhidraDisassembler(DisassemblerInterface):
+class GhidraDisassembler(DisassemblerInterface): # noqa
     """
     This classes uses ghidra_bridge to query the disassembly from Ghidra which automatically resolves structure and variable references
     ghidra_bridge is a giant hack, don't be confused that this uses variables that shouldn't exist and probably messes with the namespace in weird ways
@@ -109,11 +109,11 @@ class GhidraDisassembler(DisassemblerInterface):
 
         namespace = {}
         self._bridge = ghidra_bridge.GhidraBridge(namespace)
-        self._cuf = ghidra.program.model.listing.CodeUnitFormat.DEFAULT
-        self._diss = ghidra.app.util.PseudoDisassembler(currentProgram)
+        self._cuf = ghidra.program.model.listing.CodeUnitFormat.DEFAULT # noqa: F821
+        self._diss = ghidra.app.util.PseudoDisassembler(currentProgram) # noqa: F821
 
     def disass_line(self, addr):
-        codeUnit = self._diss.disassemble(currentAddress.getNewAddress(addr))
+        codeUnit = self._diss.disassemble(currentAddress.getNewAddress(addr)) # noqa: F821
         return "0x%x: %s\n" % (addr, self._cuf.getRepresentationString(codeUnit))
 
     def block_disass(self, block: angr.block.Block, ctx_view: 'ContextView') -> List[str]:
@@ -124,7 +124,7 @@ class GhidraDisassembler(DisassemblerInterface):
         """
         result = ""
         for a in block.instruction_addrs:
-            codeUnit = self._diss.disassemble(currentAddress.getNewAddress(a))
+            codeUnit = self._diss.disassemble(currentAddress.getNewAddress(a)) # noqa: F821
             result += "0x%x: %s\n" % (a, self._cuf.getRepresentationString(codeUnit))
         return result
 

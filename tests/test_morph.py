@@ -1,4 +1,3 @@
-import nose
 import os
 import angr
 import claripy

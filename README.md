@@ -1,5 +1,8 @@
 # angr CLI
 
+
+![Tests with angr from PyPI](https://github.com/fmagin/angr-cli/workflows/Tests%20with%20angr%20from%20PyPI/badge.svg)
+
 This Python package is a collection of modules to allow easier interactive use of angr for learning and prototyping angr.
 
 All of the features are designed for the use of angr in an interactive environment like an IPython shell or a Jupyter environment (both CLI and Notebook), but some will still work in a simple Python shell or script.

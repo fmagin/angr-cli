@@ -59,8 +59,8 @@ while len(sm.deadended) == 0:
 IPython.embed()
 print("Done!")
 
-s.context_view.pprint()
-e = ExploreInteractive(p, s)
+s.context_view.pprint()# noqa: F821
+e = ExploreInteractive(p, s)# noqa: F821
 e.cmdloop()
 
 import IPython; IPython.embed()

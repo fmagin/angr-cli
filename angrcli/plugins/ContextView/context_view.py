@@ -14,7 +14,6 @@ from angrcli.plugins.ContextView.disassemblers import (
 from archinfo import RegisterName
 from .colors import Color, ColoredString
 
-from angr.storage.paged_memory import BasePage
 from angr.state_plugins import SimStatePlugin, SimSolver
 
 l = logging.getLogger("angr.state_plugins.context_view")
@@ -114,12 +113,12 @@ class ContextView(SimStatePlugin):
 
     def print_registers_pane(self) -> None:
         for reg in self.default_registers():
-            register_number = self.state.arch.registers[reg][0]
+            register_number, size = self.state.arch.registers[reg]
             print(
                 self._pstr_register(
                     reg,
                     self.state.registers.load(
-                        register_number, inspect=False, disable_actions=True
+                        register_number, inspect=False, disable_actions=True, size=size
                     ),
                 )
             )
@@ -207,7 +206,8 @@ class ContextView(SimStatePlugin):
             if not perm.symbolic:
                 perm = self.state.solver.eval(perm, cast_to=int)
                 if perm:
-                    if perm & BasePage.PROT_EXEC:
+                    PROT_EXEC = 4
+                    if perm & 4:
                         descr = " <%s>" % self.state.project.loader.describe_addr(value)
                         if descr == " <not part of a loaded object>":
                             return Color.redify(hex(value)), True

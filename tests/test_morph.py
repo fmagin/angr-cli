@@ -11,7 +11,7 @@ from angrcli.plugins.ContextView.colors import Color
 Color.disable_colors = True
 morph_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "example", "morph")
 
-proj = angr.Project(morph_location, load_options={'auto_load_libs': False})
+proj = angr.Project(morph_location, load_options={'auto_load_libs': False}, support_selfmodifying_code=True)
 
 
 
@@ -47,5 +47,5 @@ def test_morph():
 
     assert e.simgr.one_deadended.watches['argv[1]'] == b'34C3_M1GHTY_M0RPh1nG_g0', "Invalid watch result %s" % e.simgr.one_deadended.watches['argv[1]']
 
-if __name__ == "__main__":
-    test_morph()
+# if __name__ == "__main__":
+#     # test_morph()

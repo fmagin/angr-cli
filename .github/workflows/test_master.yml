@@ -1,0 +1,35 @@
+# This workflow will install Python dependencies, run tests and lint with a single version of Python
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: Tests with angr docker container
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches: [ main ]
+  schedule:
+  - cron: "0 6 * * *"
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    container:
+      image: angr/angr:latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+    - name: Install dependencies
+      shell: bash
+      run: |
+        pwd
+        su --login - angr -c "/home/angr/.virtualenvs/angr/bin/pip install flake8 pytest $PWD"
+    - name: Test with pytest
+      run: |
+        su --login - angr -c "/home/angr/.virtualenvs/angr/bin/pytest $PWD"

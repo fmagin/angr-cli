@@ -11,7 +11,7 @@ from angrcli.plugins.ContextView.disassemblers import (
     AngrCapstoneDisassembler,
     DisassemblerInterface,
 )
-from archinfo import RegisterName
+from archinfo import RegisterName, ArchError
 from .colors import Color, ColoredString
 
 from angr.state_plugins import SimStatePlugin, SimSolver
@@ -426,6 +426,8 @@ class ContextView(SimStatePlugin):
         except SimEngineError as e:
             l.info("Got exception %s, returning None" % e)
             return None
+        except ArchError as e:
+            return str(e)
 
     def _pstr_codelinear(self, ip: int) -> PrettyString:
         """

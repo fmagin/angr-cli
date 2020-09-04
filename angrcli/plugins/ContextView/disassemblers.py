@@ -104,16 +104,17 @@ class GhidraDisassembler(DisassemblerInterface): # noqa
     ghidra_bridge is a giant hack, don't be confused that this uses variables that shouldn't exist and probably messes with the namespace in weird ways
     """
 
-    def __init__(self) -> None:
+    def __init__(self, bridge=None) -> None:
         import ghidra_bridge
 
-        namespace = {}
-        self._bridge = ghidra_bridge.GhidraBridge(namespace)
-        self._cuf = ghidra.program.model.listing.CodeUnitFormat.DEFAULT # noqa: F821
-        self._diss = ghidra.app.util.PseudoDisassembler(currentProgram) # noqa: F821
+        self._namespace = {}
+        self._bridge = bridge or ghidra_bridge.GhidraBridge(namespace=self._namespace)
+        self._ghidra = self._namespace['ghidra']
+        self._cuf = self._ghidra.program.model.listing.CodeUnitFormat.DEFAULT
+        self._diss = self._ghidra.app.util.PseudoDisassembler(self._namespace['currentProgram'])
 
     def disass_line(self, addr):
-        codeUnit = self._diss.disassemble(currentAddress.getNewAddress(addr)) # noqa: F821
+        codeUnit = self._diss.disassemble(self._namespace['currentAddress'].getNewAddress(addr))
         return "0x%x: %s\n" % (addr, self._cuf.getRepresentationString(codeUnit))
 
     def block_disass(self, block: angr.block.Block, ctx_view: 'ContextView') -> List[str]:
@@ -122,10 +123,10 @@ class GhidraDisassembler(DisassemblerInterface): # noqa
         :param angr.block.Block block:
         :return:
         """
-        result = ""
-        for a in block.instruction_addrs:
-            codeUnit = self._diss.disassemble(currentAddress.getNewAddress(a)) # noqa: F821
-            result += "0x%x: %s\n" % (a, self._cuf.getRepresentationString(codeUnit))
+        lines = self._bridge.remote_eval("[ str(disassemble(currentAddress.getNewAddress(a))) for a in addrs]", disassemble=self._diss.disassemble, addrs=block.instruction_addrs)
+
+        result = "\n".join([f"0x{hex(addr)}: {line}" for addr, line in zip(block.instruction_addrs, lines)])
+        # self._cuf.getRepresentationString(codeUnit)
         return result
 
     def linear_disass(self, ip: int, ctx_view: 'ContextView') -> List[str]:

@@ -30,7 +30,7 @@ def test_sims():
     # Should be at call puts
     lines = e.state.context_view._pstr_current_codeblock().split('\n')
     assert lines[0] == 'puts+0x0 in extern-address space (0x10)', "Incorrect location for puts"
-    assert lines[1] == "char* string@<rdi>: 0x402004 <_IO_stdin_used+0x4 in simproc_demo.elf (0x2004)> ──> b'SimProc Demo'", "Incorrect arguments rendered for puts"
+    assert lines[1] == "char* string@<rdi>: 0x402004 <_IO_stdin_used+0x4 in simproc_demo.elf (0x2004)> --> b'SimProc Demo'", "Incorrect arguments rendered for puts"
     assert lines[2] == '<SimProcedure puts>', "Incorrect code for puts"
 
     for _ in range(0, 3):
@@ -46,8 +46,8 @@ def test_sims():
 
     lines = e.state.context_view._pstr_current_codeblock().split('\n')
     assert lines[0] == 'strcpy+0x0 in extern-address space (0x8)', "Incorrect location for strcpy"
-    assert lines[1] == "char* dst@<rdi>: 0xc0000f40 ──> UNINITIALIZED", "Incorrect first argument rendered for strcpy"
-    assert lines[2] == "char* src@<rsi>: 0x%x ──> b'%s'" % (e.state.regs.rsi.args[0], proj.filename), "Incorrect sencond argument rendered for strcpy"
+    assert lines[1] == "char* dst@<rdi>: 0xc0000f40 --> UNINITIALIZED", "Incorrect first argument rendered for strcpy"
+    assert lines[2] == "char* src@<rsi>: 0x%x --> b'%s'" % (e.state.regs.rsi.args[0], proj.filename), "Incorrect sencond argument rendered for strcpy"
     assert lines[3] == '<SimProcedure strcpy>', "Incorrect code for strcpy"
 
 

@@ -454,9 +454,9 @@ class ContextView(SimStatePlugin):
     def _pstr_stack_element(self, offset: int) -> PrettyString:
         """
         Format:
-        "IDX:OFFSET|      ADDRESS ──> CONTENT":
+        "IDX:OFFSET|      ADDRESS --> CONTENT":
         Example
-        00:0x00| sp 0x7fffffffffeff10  ──> 0x7fffffffffeff60 ──> 0x7fffffffffeff98 ──> 0x6d662f656d6f682f
+        00:0x00| sp 0x7fffffffffeff10  --> 0x7fffffffffeff60 --> 0x7fffffffffeff98 --> 0x6d662f656d6f682f
         :param int offset:
         :return str: One line for the stack element being prettified
         """
@@ -481,7 +481,7 @@ class ContextView(SimStatePlugin):
         l += " "
 
         l += "%s " % self.__color_code_ast(stackaddr)
-        l += " ──> %s" % self._pstr_ast(stackval)
+        l += " --> %s" % self._pstr_ast(stackval)
         return l
 
     def _pstr_register(self, reg: RegisterName, value: claripy.ast.bv.BV) -> str:
@@ -533,7 +533,7 @@ class ContextView(SimStatePlugin):
                 if isinstance(ty.pts_to, SimTypePointer):
                     return
                 try:
-                    tmp = "%s ──> %s" % (
+                    tmp = "%s --> %s" % (
                         cc_ast,
                         repr(self.state.mem[ast].string.concrete),
                     )
@@ -542,14 +542,14 @@ class ContextView(SimStatePlugin):
                         ast, 1, inspect=False, disable_actions=True
                     )
                     if deref.op == "Extract":
-                        return "%s ──> %s" % (
+                        return "%s --> %s" % (
                             cc_ast,
                             self.__color_code_ast(deref.args[2]),
                         )
                     elif deref.uninitialized:
-                        return "%s ──> UNINITIALIZED" % (cc_ast)
+                        return "%s --> UNINITIALIZED" % (cc_ast)
                     else:
-                        return "%s ──> COMPLEX SYMBOLIC STRING" % (cc_ast)
+                        return "%s --> COMPLEX SYMBOLIC STRING" % (cc_ast)
                 else:
                     return tmp
             else:
@@ -566,7 +566,7 @@ class ContextView(SimStatePlugin):
             deref = self.__deref_addr(value)
             if (deref != None) and not ast_is_code_ptr and ast.op == "BVV":
                 pretty_deref = self._pstr_ast(deref, depth=depth + 1)
-                return "%s ──> %s" % (cc_ast, pretty_deref)
+                return "%s --> %s" % (cc_ast, pretty_deref)
             else:
                 return cc_ast
         else:

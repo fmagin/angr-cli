@@ -5,8 +5,10 @@
 
 This Python package is a collection of modules to allow easier interactive use of angr for learning and prototyping angr.
 
-All of the features are designed for the use of angr in an interactive environment like an IPython shell or a Jupyter environment (both CLI and Notebook), but some will still work in a simple Python shell or script.
+All features are designed for the use of angr in an interactive environment like an IPython shell or a Jupyter environment (both CLI and Notebook), but some will still work in a simple Python shell or script.
 
+Using a font that supports Ligatures like [JetBrains Mono](https://www.jetbrains.com/lp/mono/) is recommended to make
+the output more pleasant to read.
 
 ## Install
 

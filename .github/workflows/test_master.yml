@@ -30,7 +30,7 @@ jobs:
       run: |
         pwd
         su --login - angr -c "/home/angr/.virtualenvs/angr/bin/pip install flake8 pytest $PWD"
-        su --login - angr -c "cd /home/angr/angr-dev; git pull; source /home/angr/.virtualenvs/angr/bin/activate; ./git_all.sh pull; echo "N" | ./extremely-simple-setup.sh || true; pip install -U protobuf; pip install six"
+        su --login - angr -c "cd /home/angr/angr-dev; git pull; source /home/angr/.virtualenvs/angr/bin/activate; ./git_all.sh pull; echo "N" | ./extremely-simple-setup.sh || true; pip install -U protobuf nampa; pip install six"
     - name: Test with pytest
       run: |
         su --login - angr -c "/home/angr/.virtualenvs/angr/bin/pytest $PWD"

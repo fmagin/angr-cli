@@ -21,8 +21,20 @@ def test_sims():
     e.do_step("")
 
     lines = e.state.context_view._pstr_current_codeblock().split('\n')
-    assert lines[0] == '__libc_start_main+0x0 in extern-address space (0x0)', "Incorrect location for __libc_start_main"
-    assert lines[1] == '<SimProcedure __libc_start_main>', "Incorrect code for __libc_start_main"
+    r = ['__libc_start_main+0x0 in extern-address space (0x0)',
+         'char* unknown@<rdi>: 0x401159 <main+0x0 in simproc_demo.elf (0x1159)>',
+         # The following line is volatile and also wrong, because __libc_start_main has no proper prototype in angr defined yet
+         # All the arguments default to char*, which is correct enough for all except argc, which is just an int
+         'char* unknown@<rsi>: WARN: Symbolic Pointer <BV64 mem_7fffffffffeff5c_4_32{UNINITIALIZED} .. 0x1>',
+         "char* unknown@<rdx>: 0x7fffffffffeff60 --> b'\\x98\\xff\\xfe\\xff\\xff\\xff\\xff\\x07'",
+         'char* unknown@<rcx>: 0x4011b0 <__libc_csu_init+0x0 in simproc_demo.elf (0x11b0)>',
+         'char* unknown@<r8>: 0x401220 <__libc_csu_fini+0x0 in simproc_demo.elf (0x1220)>',
+         '<SimProcedure __libc_start_main>']
+    assert lines[0] == r[0], "Incorrect location for __libc_start_main"
+    assert lines[1] == r[1], "Incorrect main argument for __libc_start_main"
+    assert lines[4] == r[4], "Incorrect init argument for __libc_start_main"
+    assert lines[5] == r[5], "Incorrect fini argument for __libc_start_main"
+    assert lines[6] == r[6], "Incorrect code for __libc_start_main"
 
     for _ in range(0, 14):
         e.do_step("")

@@ -1,4 +1,5 @@
 from angr import SimEngineError, SimProcedure, SimState
+from angr.knowledge_plugins import Function
 from angr.sim_type import *
 
 import angr  # type annotations; pylint: disable=unused-import
@@ -360,18 +361,24 @@ class ContextView(SimStatePlugin):
 
         # Check if we are hooked or at the start of a known function to maybe pretty print the arguments
         cc = None  # type: Optional[SimCC]
+        target: Union[SimProcedure, Function, None] = None
         if current_ip in self.state.project.kb.functions:
-            function = self.state.project.kb.functions[current_ip]
-            cc = function.calling_convention
+            target: Function = self.state.project.kb.functions[current_ip]
+            cc = target.calling_convention
 
         if self.state.project.is_hooked(current_ip):
             hook = self.state.project.hooked_by(
                 current_ip
             )  # type: Optional[SimProcedure]
-            cc = hook.cc if hook else None
+            # Technically we can be sure that hook isn't None, because we checked with is_hooked,
+            # but mypy doesn't know this
+            # But by not guarding this with an is_hooked, we get annoying warnings, so we do both
+            if hook is not None:
+                target = hook
+                cc = target.cc
 
-        if cc and cc.func_ty:
-            result.extend(self._pstr_call_info(self.state, cc))
+        if target and target.prototype:
+            result.extend(self._pstr_call_info(self.state, cc, target.prototype))
 
         # Get the current code block about to be executed as pretty disassembly
         if not self.state.project.is_hooked(current_ip):
@@ -559,6 +566,11 @@ class ContextView(SimStatePlugin):
                 )
         if isinstance(ty, SimTypeChar) and ast.concrete:
             return "'%s'" % chr(self.state.solver.eval(ast))
+        elif isinstance(ty, SimTypeInt):
+            if ast.concrete:
+                return "%#x" % self.state.solver.eval(ast, cast_to=int)
+            else:
+                return str(ast)
 
         if ast.concrete:
             value: int = self.state.solver.eval(ast)
@@ -637,14 +649,14 @@ class ContextView(SimStatePlugin):
             vars,
         )
 
-    def _pstr_call_info(self, state: SimState, cc: SimCC) -> List[PrettyString]:
+    def _pstr_call_info(self, state: SimState, cc: SimCC, prototype: SimTypeFunction) -> List[PrettyString]:
         """
 
         :param angr.SimState state:
         :param SimCC cc:
         :return List[str]:
         """
-        return [self._pstr_call_argument(*arg) for arg in cc.get_arg_info(state)]
+        return [self._pstr_call_argument(*arg) for arg in cc.get_arg_info(state, prototype)]
 
     def _pstr_call_argument(self, ty: SimType, name: str, location: SimFunctionArgument, value: claripy.ast.bv.BV) -> PrettyString:
         """

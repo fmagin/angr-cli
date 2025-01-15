@@ -5,6 +5,7 @@ from angr.sim_type import *
 import angr  # type annotations; pylint: disable=unused-import
 import claripy
 from claripy.ast.bv import BV
+from claripy.annotation import UninitializedAnnotation
 from angr.calling_conventions import SimCC, SimFunctionArgument
 from typing import Optional, Tuple, Any, cast, List, Union, Dict
 
@@ -187,7 +188,7 @@ class ContextView(SimStatePlugin):
         :return Tuple[str, bool]:
         """
         if bv.symbolic:
-            if bv.uninitialized:
+            if bv.has_annotation_type(UninitializedAnnotation):
                 return Color.grayify(self.__BVtoREG(bv)), False
             return Color.greenify(self.__BVtoREG(bv)), False
         # its concrete
@@ -464,6 +465,7 @@ class ContextView(SimStatePlugin):
         "IDX:OFFSET|      ADDRESS --> CONTENT":
         Example
         00:0x00| sp 0x7fffffffffeff10  --> 0x7fffffffffeff60 --> 0x7fffffffffeff98 --> 0x6d662f656d6f682f
+
         :param int offset:
         :return str: One line for the stack element being prettified
         """

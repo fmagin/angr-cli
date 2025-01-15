@@ -555,7 +555,7 @@ class ContextView(SimStatePlugin):
                             cc_ast,
                             self.__color_code_ast(deref.args[2]),
                         )
-                    elif deref.uninitialized:
+                    elif deref.has_annotation_type(UninitializedAnnotation):
                         return "%s --> UNINITIALIZED" % (cc_ast)
                     else:
                         return "%s --> COMPLEX SYMBOLIC STRING" % (cc_ast)

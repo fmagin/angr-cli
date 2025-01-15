@@ -465,6 +465,7 @@ class ContextView(SimStatePlugin):
         "IDX:OFFSET|      ADDRESS --> CONTENT":
         Example
         00:0x00| sp 0x7fffffffffeff10  --> 0x7fffffffffeff60 --> 0x7fffffffffeff98 --> 0x6d662f656d6f682f
+
         :param int offset:
         :return str: One line for the stack element being prettified
         """

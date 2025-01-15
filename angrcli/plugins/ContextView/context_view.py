@@ -5,6 +5,7 @@ from angr.sim_type import *
 import angr  # type annotations; pylint: disable=unused-import
 import claripy
 from claripy.ast.bv import BV
+from claripy.annotation import UninitializedAnnotation
 from angr.calling_conventions import SimCC, SimFunctionArgument
 from typing import Optional, Tuple, Any, cast, List, Union, Dict
 
@@ -187,7 +188,7 @@ class ContextView(SimStatePlugin):
         :return Tuple[str, bool]:
         """
         if bv.symbolic:
-            if bv.uninitialized:
+            if bv.has_annotation_type(UninitializedAnnotation):
                 return Color.grayify(self.__BVtoREG(bv)), False
             return Color.greenify(self.__BVtoREG(bv)), False
         # its concrete

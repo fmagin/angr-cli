@@ -174,6 +174,12 @@ class ContextView(SimStatePlugin):
             return replname
         return str(bv)
 
+    def is_uninitialized(self, bv):
+        return any(
+            isinstance(a, claripy.annotation.UninitializedAnnotation)
+            for a in bv.annotations
+        )
+
     def _color_code_ast(self, bv: claripy.ast.bv.BV) -> Tuple[ColoredString, bool]:
         """
         Converts a bitvector into a string representation that is colored depending on it's type/value and returns
@@ -188,7 +194,7 @@ class ContextView(SimStatePlugin):
         :return Tuple[str, bool]:
         """
         if bv.symbolic:
-            if bv.has_annotation_type(UninitializedAnnotation):
+            if self.is_uninitialized(bv):
                 return Color.grayify(self.__BVtoREG(bv)), False
             return Color.greenify(self.__BVtoREG(bv)), False
         # its concrete
@@ -600,25 +606,11 @@ class ContextView(SimStatePlugin):
         """
         custom = {
             "X86": cast(List[RegisterName], ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp", "eip"]),
-            "AMD64": cast(List[RegisterName], [
-                "rax",
-                "rbx",
-                "rcx",
-                "rdx",
-                "rsi",
-                "rdi",
-                "rbp",
-                "rsp",
-                "rip",
-                "r8",
-                "r9",
-                "r10",
-                "r11",
-                "r12",
-                "r13",
-                "r14",
-                "r15",
-            ]),
+            "AMD64": cast(List[RegisterName], ["rax","rbx","rcx","rdx","rsi","rdi","rbp","rsp","rip","r8","r9","r10","r11","r12","r13","r14","r15"]),
+            "MIPS32": cast(List[RegisterName], ["a0", "a1", "a2", "a3", "s0", "s1","s2", "s3", "s4", "s5", "s6", "s7","t0", "t1", "t2", "t3", "t4", "t5","t6", "t7", "t8", "t9", "v0", "v1","sp", "gp", "pc", "ra", "fp"]),
+            "ARMHF": cast(List[RegisterName], ["r0", "r1", "r2", "r3", "r4", "r5","r6", "r7", "r8", "r9", "r10", "r11","r12", "lr", "sp", "pc"]),
+            "ARMEL": cast(List[RegisterName], ["r0", "r1", "r2", "r3", "r4", "r5","r6", "r7", "r8", "r9", "r10", "r11","r12", "lr", "sp", "pc"]),
+            "AArch64": cast(List[RegisterName], ["x0", "x1", "x2", "x3", "x4", "x5","x6", "x7", "x8", "x9", "x10", "x11","x12", "x13", "x14", "x15", "x16", "x17", "x18", "x19", "x20", "x21", "x22", "x23", "x24", "x25", "x26", "x27", "x28", "x29","x30"])
         } # type: Dict[str, List[RegisterName]]
         if self.state.arch.name in custom:
             return custom[self.state.arch.name]
